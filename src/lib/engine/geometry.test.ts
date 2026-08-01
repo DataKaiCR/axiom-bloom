@@ -46,6 +46,19 @@ describe('interpretCommands', () => {
     expect(values[13]).toBeCloseTo(-20)
   })
 
+  it('records branch and final endpoints as tips', () => {
+    const geometry = interpretCommands('F[+F]F', preset, settings)
+
+    const tips = Array.from(geometry.tips)
+    expect(tips).toHaveLength(8)
+    expect(tips[0]).toBeCloseTo(10)
+    expect(tips[1]).toBeCloseTo(-10)
+    expect(tips.slice(2, 4)).toEqual([1, 2])
+    expect(tips[4]).toBeCloseTo(0)
+    expect(tips[5]).toBeCloseTo(-20)
+    expect(tips.slice(6)).toEqual([0, 3])
+  })
+
   it('produces repeatable geometry for a seed', () => {
     const varied = { ...settings, turnJitter: 20 }
     const first = interpretCommands('F+F-F+F', preset, varied)

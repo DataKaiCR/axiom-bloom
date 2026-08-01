@@ -4,24 +4,68 @@ import { interpolateColor, type RenderStyle } from './canvas'
 const EXPORT_WIDTH = 1600
 const EXPORT_HEIGHT = 1000
 
+interface SvgViewport {
+  viewBox: [number, number, number, number]
+  worldPerPixel: number
+}
+
+interface SvgPath {
+  color: string
+  width: number
+  commands: string[]
+}
+
 export function createSvg(
   geometry: Geometry,
   style: RenderStyle,
   title: string,
 ): string {
+  const viewport = createSvgViewport(geometry)
+  const pathMarkup = createPathMarkup(geometry, style, viewport.worldPerPixel)
+  const tips = style.showTips
+    ? createTipMarkup(geometry, style, viewport.worldPerPixel)
+    : ''
+  const viewBox = viewport.viewBox
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${EXPORT_WIDTH}" height="${EXPORT_HEIGHT}" viewBox="${viewBox.map(format).join(' ')}">
+  <title>${escapeXml(title)}</title>
+  <rect x="${format(viewBox[0])}" y="${format(viewBox[1])}" width="${format(viewBox[2])}" height="${format(viewBox[3])}" fill="${style.background}"/>
+  <g style="filter: drop-shadow(0 0 ${Math.max(0, style.glow * viewport.worldPerPixel)}px ${style.palette.crown})">
+    ${pathMarkup}
+    ${tips}
+  </g>
+</svg>
+`
+}
+
+function createSvgViewport(geometry: Geometry): SvgViewport {
   const { minX, minY, maxX, maxY } = geometry.bounds
   const contentWidth = Math.max(1, maxX - minX)
   const contentHeight = Math.max(1, maxY - minY)
   const padding = Math.max(contentWidth, contentHeight) * 0.08
-  const viewBox = [
+  const viewBox: SvgViewport['viewBox'] = [
     minX - padding,
     minY - padding,
     contentWidth + padding * 2,
     contentHeight + padding * 2,
   ]
-  const worldPerPixel = Math.max(viewBox[2] / EXPORT_WIDTH, viewBox[3] / EXPORT_HEIGHT)
-  const paths = new Map<string, { color: string; width: number; commands: string[] }>()
 
+  return {
+    viewBox,
+    worldPerPixel: Math.max(
+      viewBox[2] / EXPORT_WIDTH,
+      viewBox[3] / EXPORT_HEIGHT,
+    ),
+  }
+}
+
+function createPathMarkup(
+  geometry: Geometry,
+  style: RenderStyle,
+  worldPerPixel: number,
+): string {
+  const paths = new Map<string, SvgPath>()
   for (let index = 0; index < geometry.segmentCount; index += 1) {
     const offset = index * SEGMENT_STRIDE
     const depth = geometry.segments[offset + 4]
@@ -30,41 +74,25 @@ export function createSvg(
       : index / Math.max(1, geometry.segmentCount - 1)
     const bucket = geometry.maxDepth > 0 ? depth : Math.floor(progress * 20)
     const key = `${depth}:${bucket}`
-    const entry = paths.get(key) ?? {
+    const path = paths.get(key) ?? {
       color: interpolateColor(style.palette.root, style.palette.crown, progress),
       width: Math.max(0.7, style.trunkWidth * style.taper ** depth) * worldPerPixel,
       commands: [],
     }
-
-    entry.commands.push(
+    path.commands.push(
       `M${format(geometry.segments[offset])} ${format(geometry.segments[offset + 1])}` +
       `L${format(geometry.segments[offset + 2])} ${format(geometry.segments[offset + 3])}`,
     )
-    paths.set(key, entry)
+    paths.set(key, path)
   }
 
-  const pathMarkup = [...paths.values()]
+  return [...paths.values()]
     .map(
       (path) =>
         `<path d="${path.commands.join('')}" fill="none" stroke="${path.color}" ` +
         `stroke-width="${format(path.width)}" stroke-linecap="round" stroke-linejoin="round"/>`,
     )
     .join('\n    ')
-
-  const tips = style.showTips
-    ? createTipMarkup(geometry, style, worldPerPixel)
-    : ''
-
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${EXPORT_WIDTH}" height="${EXPORT_HEIGHT}" viewBox="${viewBox.map(format).join(' ')}">
-  <title>${escapeXml(title)}</title>
-  <rect x="${format(viewBox[0])}" y="${format(viewBox[1])}" width="${format(viewBox[2])}" height="${format(viewBox[3])}" fill="${style.background}"/>
-  <g style="filter: drop-shadow(0 0 ${Math.max(0, style.glow * worldPerPixel)}px ${style.palette.crown})">
-    ${pathMarkup}
-    ${tips}
-  </g>
-</svg>
-`
 }
 
 export function downloadSvg(contents: string, filename: string): void {
