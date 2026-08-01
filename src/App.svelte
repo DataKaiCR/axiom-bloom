@@ -1,9 +1,23 @@
 <script lang="ts">
   import { onMount } from 'svelte'
+  import {
+    MAX_PRODUCTION_RULES,
+    validateGrammar,
+    type GrammarIssueField,
+    type ProductionRuleDraft,
+  } from './lib/engine/grammar'
   import { PRESETS, getPreset } from './lib/engine/presets'
-  import type { GenerationResponse, Geometry } from './lib/engine/types'
+  import type {
+    GenerationResponse,
+    Geometry,
+    LSystemPreset,
+  } from './lib/engine/types'
   import { renderCanvas, type RenderStyle } from './lib/render/canvas'
   import { createSvg, downloadSvg } from './lib/render/svg'
+
+  interface EditableRule extends ProductionRuleDraft {
+    id: number
+  }
 
   const initialPreset = PRESETS[0]
   const seedWords = ['moss', 'lumen', 'fern', 'ember', 'dawn', 'willow', 'echo', 'rain']
@@ -14,6 +28,7 @@
   let animationFrame = 0
   let currentProgress = 1
   let latestRequest = 0
+  let nextRuleId = 0
 
   let workerReady = $state(false)
   let presetId = $state(initialPreset.id)
@@ -28,12 +43,38 @@
   let taper = $state(initialPreset.appearance.taper)
   let glow = $state(initialPreset.appearance.glow)
   let showTips = $state(initialPreset.appearance.showTips)
+  let grammarAxiom = $state(initialPreset.axiom)
+  let grammarRules = $state<EditableRule[]>(createEditableRules(initialPreset.rules))
   let geometry = $state<Geometry | null>(null)
-  let status = $state<'starting' | 'growing' | 'ready' | 'error'>('starting')
+  let status = $state<'starting' | 'growing' | 'ready' | 'invalid' | 'error'>('starting')
   let errorMessage = $state('')
   let elapsedMs = $state(0)
 
   let selectedPreset = $derived(getPreset(presetId))
+  let grammarValidation = $derived(validateGrammar(grammarAxiom, grammarRules))
+  let axiomError = $derived(
+    grammarValidation.issues.find((issue) => issue.field === 'axiom')?.message ?? '',
+  )
+  let rulesError = $derived(
+    grammarValidation.issues.find((issue) => issue.field === 'rules')?.message ?? '',
+  )
+  let grammarDirty = $derived.by(() => {
+    const presetRules = Object.entries(selectedPreset.rules)
+    return (
+      grammarAxiom !== selectedPreset.axiom ||
+      grammarRules.length !== presetRules.length ||
+      grammarRules.some(
+        (rule, index) =>
+          rule.symbol !== presetRules[index]?.[0] ||
+          rule.replacement !== presetRules[index]?.[1],
+      )
+    )
+  })
+  let activePreset = $derived<LSystemPreset>({
+    ...selectedPreset,
+    axiom: grammarValidation.axiom,
+    rules: grammarValidation.rules,
+  })
   let renderStyle = $derived<RenderStyle>({
     palette: { root: rootColor, crown: crownColor, accent: accentColor },
     background: '#06100c',
@@ -46,8 +87,16 @@
   $effect(() => {
     if (!workerReady) return
 
+    const validation = grammarValidation
+    if (!validation.valid) {
+      latestRequest += 1
+      status = 'invalid'
+      errorMessage = ''
+      return
+    }
+
     const request = {
-      preset: selectedPreset,
+      preset: activePreset,
       settings: {
         generations,
         angle,
@@ -113,6 +162,14 @@
     }
   })
 
+  function createEditableRules(rules: Record<string, string>): EditableRule[] {
+    return Object.entries(rules).map(([symbol, replacement]) => ({
+      id: nextRuleId++,
+      symbol,
+      replacement,
+    }))
+  }
+
   function choosePreset(nextId: string): void {
     const next = getPreset(nextId)
     presetId = next.id
@@ -127,6 +184,29 @@
     taper = next.appearance.taper
     glow = next.appearance.glow
     showTips = next.appearance.showTips
+    resetGrammar(next)
+  }
+
+  function resetGrammar(preset: LSystemPreset = selectedPreset): void {
+    grammarAxiom = preset.axiom
+    grammarRules = createEditableRules(preset.rules)
+  }
+
+  function addRule(): void {
+    if (grammarRules.length >= MAX_PRODUCTION_RULES) return
+    grammarRules.push({ id: nextRuleId++, symbol: '', replacement: '' })
+  }
+
+  function removeRule(id: number): void {
+    grammarRules = grammarRules.filter((rule) => rule.id !== id)
+  }
+
+  function grammarIssue(field: GrammarIssueField, ruleIndex: number): string {
+    return (
+      grammarValidation.issues.find(
+        (issue) => issue.field === field && issue.ruleIndex === ruleIndex,
+      )?.message ?? ''
+    )
   }
 
   function startAnimation(): void {
@@ -170,13 +250,13 @@
   }
 
   function saveSvg(): void {
-    if (!geometry) return
+    if (!geometry || !grammarValidation.valid) return
     const filename = `${selectedPreset.id}-${slugify(seed)}.svg`
     downloadSvg(createSvg(geometry, renderStyle, `${selectedPreset.name} — Axiom Bloom`), filename)
   }
 
   function savePng(): void {
-    if (!geometry) return
+    if (!geometry || !grammarValidation.valid) return
     currentProgress = 1
     drawCurrentFrame()
     canvas.toBlob((blob) => {
@@ -216,15 +296,26 @@
     </a>
 
     <div class="top-actions">
-      <span class="engine-status" class:error={status === 'error'}>
+      <span class="engine-status" class:error={status === 'error' || status === 'invalid'}>
         <i></i>
-        {status === 'growing' ? 'Growing' : status === 'error' ? 'Interrupted' : 'Engine ready'}
+        {status === 'growing'
+          ? 'Growing'
+          : status === 'invalid'
+            ? 'Review grammar'
+            : status === 'error'
+              ? 'Interrupted'
+              : 'Engine ready'}
       </span>
       <button class="ghost-button" type="button" onclick={startAnimation} disabled={!geometry}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.34-5.66L4 8.68M4 4v4.68h4.68"/></svg>
         Replay
       </button>
-      <button class="export-button" type="button" onclick={saveSvg} disabled={!geometry}>
+      <button
+        class="export-button"
+        type="button"
+        onclick={saveSvg}
+        disabled={!geometry || !grammarValidation.valid}
+      >
         Export SVG
       </button>
     </div>
@@ -235,7 +326,9 @@
       <canvas bind:this={canvas}></canvas>
 
       <div class="stage-heading">
-        <span>{selectedPreset.category} / {generations} generations</span>
+        <span>
+          {selectedPreset.category} / {generations} generations{grammarDirty ? ' / custom grammar' : ''}
+        </span>
         <h1>{selectedPreset.name}</h1>
         <p>{selectedPreset.description}</p>
       </div>
@@ -343,16 +436,117 @@
       </section>
 
       <section class="control-section grammar-section">
-        <div class="section-heading"><span>Grammar</span><small>L-system</small></div>
-        <div class="grammar-row"><span>Axiom</span><code>{selectedPreset.axiom}</code></div>
-        {#each Object.entries(selectedPreset.rules) as [symbol, replacement]}
-          <div class="grammar-row"><span>{symbol}</span><code>{replacement}</code></div>
-        {/each}
+        <div class="section-heading grammar-heading">
+          <span>Grammar</span>
+          <small>{grammarRules.length} {grammarRules.length === 1 ? 'rule' : 'rules'}</small>
+        </div>
+
+        <label class="grammar-field" class:invalid={Boolean(axiomError)}>
+          <span>Axiom</span>
+          <input
+            type="text"
+            bind:value={grammarAxiom}
+            aria-invalid={Boolean(axiomError)}
+            aria-describedby={axiomError ? 'axiom-error' : undefined}
+            maxlength="512"
+            spellcheck="false"
+          />
+        </label>
+        {#if axiomError}
+          <p class="grammar-error" id="axiom-error">{axiomError}</p>
+        {/if}
+
+        <div class="grammar-rules">
+          {#each grammarRules as rule, index (rule.id)}
+            {@const symbolError = grammarIssue('symbol', index)}
+            {@const replacementError = grammarIssue('replacement', index)}
+            <div class="grammar-rule" class:invalid={Boolean(symbolError || replacementError)}>
+              <label class="symbol-field">
+                <span>Rule {index + 1} symbol</span>
+                <input
+                  type="text"
+                  bind:value={rule.symbol}
+                  aria-label={`Rule ${index + 1} symbol`}
+                  aria-invalid={Boolean(symbolError)}
+                  aria-describedby={symbolError ? `rule-${rule.id}-symbol-error` : undefined}
+                  maxlength="1"
+                  placeholder="F"
+                  spellcheck="false"
+                />
+              </label>
+              <i aria-hidden="true">→</i>
+              <label class="replacement-field">
+                <span>Rule {index + 1} production</span>
+                <input
+                  type="text"
+                  bind:value={rule.replacement}
+                  aria-label={`Rule ${index + 1} production`}
+                  aria-invalid={Boolean(replacementError)}
+                  aria-describedby={replacementError ? `rule-${rule.id}-production-error` : undefined}
+                  maxlength="4096"
+                  placeholder="Empty deletes the symbol"
+                  spellcheck="false"
+                />
+              </label>
+              <button
+                type="button"
+                onclick={() => removeRule(rule.id)}
+                aria-label={`Remove rule ${rule.symbol || index + 1}`}
+              >
+                ×
+              </button>
+            </div>
+            {#if symbolError}
+              <p class="grammar-error rule-error" id={`rule-${rule.id}-symbol-error`}>
+                {symbolError}
+              </p>
+            {/if}
+            {#if replacementError}
+              <p class="grammar-error rule-error" id={`rule-${rule.id}-production-error`}>
+                {replacementError}
+              </p>
+            {/if}
+          {/each}
+        </div>
+
+        {#if rulesError}
+          <p class="grammar-error">{rulesError}</p>
+        {/if}
+
+        <div class="grammar-actions">
+          <button
+            class="add-rule-button"
+            type="button"
+            onclick={addRule}
+            disabled={grammarRules.length >= MAX_PRODUCTION_RULES}
+          >
+            + Add rule
+          </button>
+          <button type="button" onclick={() => resetGrammar()} disabled={!grammarDirty}>
+            Reset preset
+          </button>
+        </div>
+
+        <p class:valid={grammarValidation.valid} class="grammar-state" aria-live="polite">
+          {grammarValidation.valid
+            ? grammarDirty
+              ? 'Custom grammar is live.'
+              : 'Preset grammar is live.'
+            : 'Fix the highlighted fields to resume growth.'}
+        </p>
       </section>
 
       <div class="download-row">
-        <button type="button" onclick={savePng} disabled={!geometry}>Save PNG</button>
-        <button type="button" onclick={saveSvg} disabled={!geometry}>Save SVG</button>
+        <button
+          type="button"
+          onclick={savePng}
+          disabled={!geometry || !grammarValidation.valid}
+        >Save PNG</button>
+        <button
+          type="button"
+          onclick={saveSvg}
+          disabled={!geometry || !grammarValidation.valid}
+        >Save SVG</button>
       </div>
     </aside>
   </main>
