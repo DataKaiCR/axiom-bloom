@@ -1,0 +1,43 @@
+[project]
+name = "Axiom Bloom"
+id = "axiom-bloom"
+status = "active"
+type = "product"
+
+[consultant]
+ownership = "datakai"
+license_model = "MIT"
+
+[datakai]
+visibility = "public"
+product_category = "creative-lab"
+revenue_model = "open-source"
+maturity = "experimental"
+protocols = ["semantic-self-containment", "no-dry-runs", "typescript-safety", "testing-standards"]
+dkos_version = "1.0"
+
+[dev]
+roadmap = ".dev/ROADMAP.md"
+
+[tech]
+stack = ["typescript", "svelte", "vite", "canvas", "svg", "web-worker"]
+domain = ["generative-art", "creative-coding", "l-systems", "web"]
+
+[dates]
+started = "2023-04-12"
+completed = ""
+
+[links]
+repository = "https://github.com/DataKaiCR/visualizing-lsystems"
+documentation = "README.md"
+
+[notes]
+description = "Interactive generative-art studio for growing botanical forms, recursive curves, and geometric structures from L-system rules."
+
+[tmux]
+layout = "main-vertical"
+windows = [
+  { name = "server", command = "npm run dev -- --host 127.0.0.1" },
+  { name = "tests", command = "npm run test:watch" },
+  { name = "git", command = "git status --short --branch" },
+]

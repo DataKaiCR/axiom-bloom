@@ -1,32 +1,56 @@
-# L-System Visualizer
+# Axiom Bloom
 
-This project is a Python program that uses the Turtle module to visualize L-systems.
+**Art that grows from rules.**
 
-## What is an L-system?
+Axiom Bloom is an interactive generative-art studio for exploring Lindenmayer systems. It grows botanical forms, recursive curves, and geometric structures in real time, with seeded variation and export-ready output.
 
-An L-system (Lindenmayer system) is a mathematical model used to describe the growth and form of plants and other natural phenomena. It consists of an initial "axiom" (a string of symbols), and a set of "production rules" that dictate how each symbol in the axiom should be replaced with another set of symbols in each iteration of the system. By repeatedly applying these production rules, complex patterns and shapes can emerge.
+## Highlights
 
-## How to use this program
+- Correct, symbol-agnostic L-system rewriting
+- Deterministic seeded variation
+- Web Worker generation with a 500,000-symbol safety limit
+- Animated, depth-aware Canvas rendering
+- Live generation, angle, palette, taper, glow, and seed controls
+- Built-in botanical, dragon curve, and Sierpiński presets
+- PNG and consolidated SVG export
+- Responsive and reduced-motion-aware interface
 
-To use this program, simply run the `main.py` script. You have access to a dictionary object with the logic and the algorithms located in the lsystems module. Once you specify your algorithm and logic, the program will generate a string of symbols by applying the production rules to the axiom, and then use the Turtle module to draw the resulting pattern on the screen.
+## Development
 
-## Dependencies
+Requires a current Node.js release (Node 24 or newer is recommended).
 
-This program requires Python 3 and the Turtle module, which is included in the standard library. It has been tested on Windows, macOS, and Linux.
-
-## Example
-
-Here is an example L-system that generates a fractal plant:
-
-Axiom: `X` Production rules:
-
+```bash
+npm install
+npm run dev
 ```
-X -> F+[[X]-X]-F[-FX]+X 
-F -> FF
+
+Quality checks:
+
+```bash
+npm test
+npm run check
+npm run build
+
+# Optional browser suite (first run: npx playwright install chromium)
+npm run test:e2e
 ```
 
-To visualize this L-system using the program, you would specify the above axiom and production rules, along with parameters such as an angle of 25 degrees and a segment length (step) of 10 units.
+## Architecture
+
+```text
+src/
+├── lib/engine/       Pure grammar expansion, seeded RNG, turtle geometry, presets
+├── lib/render/       Canvas renderer and SVG exporter
+├── App.svelte        Interactive studio shell
+└── app.css           Visual system and responsive layout
+```
+
+The engine is independent of Svelte and Canvas. Generation runs behind a worker boundary so a future Rust/WASM implementation can replace the computational core without changing the application or renderers.
+
+## Legacy prototype
+
+The original Python/Turtle concept is preserved in [`legacy/python`](legacy/python) and in the `0.1.0` Git tag.
 
 ## License
 
-This project is licensed under the MIT License. Feel free to use and modify the code as you see fit. If you find this program useful, I'd love to hear from you!
+MIT

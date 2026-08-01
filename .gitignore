@@ -1,2 +1,29 @@
-venv
-__pycache__
+node_modules/
+dist/
+.vite/
+playwright-report/
+test-results/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+
+# Legacy Python artifacts
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+
+# Keep operational continuity private in this public repository.
+.context/*
+!.context/README.md
+
+# Keep web assets even when a global Git ignore excludes "Public" directories.
+!public/
+!public/**
+
+# Editors and operating systems
+.DS_Store
+
+# DKOS runtime context (volatile session state, regenerated each session; Read on demand)
+.context/runtime/
