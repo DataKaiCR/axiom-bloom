@@ -1,6 +1,15 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import {
+    ARTWORK_LIMITS,
+    ARTWORK_QUERY_PARAMETER,
+    MAX_SEED_LENGTH,
+    decodeArtworkState,
+    encodeArtworkState,
+    type ArtworkState,
+    type ArtworkStateFailureReason,
+  } from './lib/engine/artwork-state'
+  import {
     MAX_PRODUCTION_RULES,
     validateGrammar,
     type GrammarIssueField,
@@ -19,6 +28,11 @@
     id: number
   }
 
+  interface ShareFeedback {
+    tone: 'success' | 'error'
+    message: string
+  }
+
   const initialPreset = PRESETS[0]
   const seedWords = ['moss', 'lumen', 'fern', 'ember', 'dawn', 'willow', 'echo', 'rain']
 
@@ -29,8 +43,11 @@
   let currentProgress = 1
   let latestRequest = 0
   let nextRuleId = 0
+  let shareFeedbackTimer = 0
 
   let workerReady = $state(false)
+  let browserReady = $state(false)
+  let urlSyncEnabled = $state(false)
   let presetId = $state(initialPreset.id)
   let generations = $state(initialPreset.defaultGenerations)
   let angle = $state(initialPreset.angle)
@@ -49,6 +66,7 @@
   let status = $state<'starting' | 'growing' | 'ready' | 'invalid' | 'error'>('starting')
   let errorMessage = $state('')
   let elapsedMs = $state(0)
+  let shareFeedback = $state<ShareFeedback | null>(null)
 
   let selectedPreset = $derived(getPreset(presetId))
   let grammarValidation = $derived(validateGrammar(grammarAxiom, grammarRules))
@@ -125,7 +143,26 @@
     }
   })
 
+  $effect(() => {
+    if (!browserReady || !urlSyncEnabled) return
+
+    const validation = grammarValidation
+    if (!validation.valid) {
+      updateArtworkUrl(null)
+      return
+    }
+
+    const encoded = encodeArtworkState(createArtworkState())
+    const timeout = window.setTimeout(() => {
+      updateArtworkUrl(encoded.ok ? encoded.value : null)
+    }, 120)
+
+    return () => window.clearTimeout(timeout)
+  })
+
   onMount(() => {
+    hydrateArtworkFromUrl()
+
     worker = new Worker(new URL('./lib/engine/engine.worker.ts', import.meta.url), {
       type: 'module',
     })
@@ -153,20 +190,30 @@
 
     resizeObserver = new ResizeObserver(() => drawCurrentFrame())
     resizeObserver.observe(canvas)
+    browserReady = true
     workerReady = true
 
     return () => {
       window.cancelAnimationFrame(animationFrame)
+      window.clearTimeout(shareFeedbackTimer)
       resizeObserver.disconnect()
       worker.terminate()
     }
   })
 
   function createEditableRules(rules: Record<string, string>): EditableRule[] {
-    return Object.entries(rules).map(([symbol, replacement]) => ({
+    return createEditableRuleDrafts(
+      Object.entries(rules).map(([symbol, replacement]) => ({ symbol, replacement })),
+    )
+  }
+
+  function createEditableRuleDrafts(
+    rules: readonly ProductionRuleDraft[],
+  ): EditableRule[] {
+    return rules.map((rule) => ({
       id: nextRuleId++,
-      symbol,
-      replacement,
+      symbol: rule.symbol,
+      replacement: rule.replacement,
     }))
   }
 
@@ -207,6 +254,118 @@
         (issue) => issue.field === field && issue.ruleIndex === ruleIndex,
       )?.message ?? ''
     )
+  }
+
+  function hydrateArtworkFromUrl(): void {
+    const payload = new URLSearchParams(window.location.search).get(ARTWORK_QUERY_PARAMETER)
+    if (payload === null) return
+
+    const decoded = decodeArtworkState(payload)
+    if (!decoded.ok) {
+      showShareFeedback({ tone: 'error', message: shareLoadError(decoded.reason) })
+      return
+    }
+
+    applyArtworkState(decoded.value)
+    urlSyncEnabled = true
+    showShareFeedback({ tone: 'success', message: 'Shared artwork restored.' })
+  }
+
+  function applyArtworkState(state: ArtworkState): void {
+    presetId = state.presetId
+    generations = state.generations
+    angle = state.angle
+    jitter = state.turnJitter
+    seed = state.seed
+    rootColor = state.palette.root
+    crownColor = state.palette.crown
+    accentColor = state.palette.accent
+    trunkWidth = state.trunkWidth
+    taper = state.taper
+    glow = state.glow
+    showTips = state.showTips
+    grammarAxiom = state.axiom
+    grammarRules = createEditableRuleDrafts(state.rules)
+  }
+
+  function createArtworkState(): ArtworkState {
+    return {
+      presetId,
+      axiom: grammarValidation.axiom,
+      rules: grammarRules.map((rule) => ({
+        symbol: rule.symbol,
+        replacement: rule.replacement,
+      })),
+      generations,
+      angle,
+      turnJitter: jitter,
+      seed,
+      palette: { root: rootColor, crown: crownColor, accent: accentColor },
+      trunkWidth,
+      taper,
+      glow,
+      showTips,
+    }
+  }
+
+  async function copyShareLink(): Promise<void> {
+    if (!grammarValidation.valid) return
+
+    const encoded = encodeArtworkState(createArtworkState())
+    if (!encoded.ok) {
+      updateArtworkUrl(null)
+      showShareFeedback({
+        tone: 'error',
+        message:
+          encoded.reason === 'too-large'
+            ? 'This artwork is too complex to fit in a share link.'
+            : 'This artwork cannot be shared until its settings are valid.',
+      })
+      return
+    }
+
+    urlSyncEnabled = true
+    const url = updateArtworkUrl(encoded.value)
+
+    try {
+      if (!navigator.clipboard) throw new Error('Clipboard access is unavailable.')
+      await navigator.clipboard.writeText(url)
+      showShareFeedback({ tone: 'success', message: 'Share link copied.' })
+    } catch {
+      showShareFeedback({
+        tone: 'error',
+        message: 'Share link is ready in the address bar, but could not be copied.',
+      })
+    }
+  }
+
+  function updateArtworkUrl(payload: string | null): string {
+    const url = new URL(window.location.href)
+    if (payload === null) {
+      url.searchParams.delete(ARTWORK_QUERY_PARAMETER)
+    } else {
+      url.searchParams.set(ARTWORK_QUERY_PARAMETER, payload)
+    }
+    window.history.replaceState(window.history.state, '', url)
+    return url.toString()
+  }
+
+  function showShareFeedback(feedback: ShareFeedback): void {
+    window.clearTimeout(shareFeedbackTimer)
+    shareFeedback = feedback
+    shareFeedbackTimer = window.setTimeout(() => {
+      shareFeedback = null
+    }, 4_500)
+  }
+
+  function shareLoadError(reason: ArtworkStateFailureReason): string {
+    if (reason === 'unsupported-version') {
+      return 'This share link uses an unsupported version. Showing the default artwork.'
+    }
+    if (reason === 'too-large') {
+      return 'This share link is too large. Showing the default artwork.'
+    }
+    return 'This share link could not be restored. Showing the default artwork.'
   }
 
   function startAnimation(): void {
@@ -311,6 +470,18 @@
         Replay
       </button>
       <button
+        class="share-button"
+        type="button"
+        onclick={copyShareLink}
+        disabled={!grammarValidation.valid}
+        aria-label="Copy share link"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M10 13a5 5 0 0 0 7.54.54l2-2a5 5 0 0 0-7.07-7.07l-1.15 1.15M14 11a5 5 0 0 0-7.54-.54l-2 2a5 5 0 0 0 7.07 7.07l1.14-1.14"/>
+        </svg>
+        <span>Copy link</span>
+      </button>
+      <button
         class="export-button"
         type="button"
         onclick={saveSvg}
@@ -320,6 +491,18 @@
       </button>
     </div>
   </header>
+
+  {#if shareFeedback}
+    <p
+      class="share-toast"
+      class:error={shareFeedback.tone === 'error'}
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    >
+      {shareFeedback.message}
+    </p>
+  {/if}
 
   <main class="workspace">
     <section class="canvas-stage" aria-label="Generated artwork">
@@ -381,23 +564,50 @@
 
         <label class="range-control">
           <span><b>Generations</b><output>{generations}</output></span>
-          <input type="range" min="0" max={selectedPreset.maxGenerations} step="1" bind:value={generations} />
+          <input
+            type="range"
+            min="0"
+            max={selectedPreset.maxGenerations}
+            step="1"
+            bind:value={generations}
+            aria-label="Generations"
+          />
         </label>
 
         <label class="range-control">
           <span><b>Turn angle</b><output>{angle.toFixed(1)}°</output></span>
-          <input type="range" min="0" max="180" step="0.5" bind:value={angle} />
+          <input
+            type="range"
+            min={ARTWORK_LIMITS.angle.min}
+            max={ARTWORK_LIMITS.angle.max}
+            step="0.5"
+            bind:value={angle}
+            aria-label="Turn angle"
+          />
         </label>
 
         <label class="range-control">
           <span><b>Wildness</b><output>±{jitter.toFixed(1)}°</output></span>
-          <input type="range" min="0" max="25" step="0.5" bind:value={jitter} />
+          <input
+            type="range"
+            min={ARTWORK_LIMITS.turnJitter.min}
+            max={ARTWORK_LIMITS.turnJitter.max}
+            step="0.5"
+            bind:value={jitter}
+            aria-label="Wildness"
+          />
         </label>
 
         <label class="seed-control">
           <span>Seed</span>
           <div>
-            <input type="text" bind:value={seed} spellcheck="false" />
+            <input
+              type="text"
+              bind:value={seed}
+              maxlength={MAX_SEED_LENGTH}
+              aria-label="Seed"
+              spellcheck="false"
+            />
             <button type="button" onclick={randomizeSeed} aria-label="Create a random seed">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>
             </button>
@@ -415,22 +625,43 @@
 
         <label class="range-control compact">
           <span><b>Weight</b><output>{trunkWidth.toFixed(1)}</output></span>
-          <input type="range" min="0.8" max="12" step="0.1" bind:value={trunkWidth} />
+          <input
+            type="range"
+            min={ARTWORK_LIMITS.trunkWidth.min}
+            max={ARTWORK_LIMITS.trunkWidth.max}
+            step="0.1"
+            bind:value={trunkWidth}
+            aria-label="Weight"
+          />
         </label>
 
         <label class="range-control compact">
           <span><b>Taper</b><output>{taper.toFixed(2)}</output></span>
-          <input type="range" min="0.5" max="1" step="0.01" bind:value={taper} />
+          <input
+            type="range"
+            min={ARTWORK_LIMITS.taper.min}
+            max={ARTWORK_LIMITS.taper.max}
+            step="0.01"
+            bind:value={taper}
+            aria-label="Taper"
+          />
         </label>
 
         <label class="range-control compact">
           <span><b>Radiance</b><output>{glow.toFixed(0)}</output></span>
-          <input type="range" min="0" max="18" step="1" bind:value={glow} />
+          <input
+            type="range"
+            min={ARTWORK_LIMITS.glow.min}
+            max={ARTWORK_LIMITS.glow.max}
+            step="1"
+            bind:value={glow}
+            aria-label="Radiance"
+          />
         </label>
 
         <label class="toggle-control">
           <span><b>Terminal blooms</b><small>Mark the tips of each branch</small></span>
-          <input type="checkbox" bind:checked={showTips} />
+          <input type="checkbox" bind:checked={showTips} aria-label="Terminal blooms" />
           <i aria-hidden="true"></i>
         </label>
       </section>

@@ -59,3 +59,79 @@ test('edits, validates, and resets a custom grammar', async ({ page }) => {
   await expect(page.getByText('Preset grammar is live.')).toBeVisible()
   expect(pageErrors).toEqual([])
 })
+
+test('copies and restores a complete artwork URL', async ({ page }) => {
+  const pageErrors: string[] = []
+  page.on('pageerror', (error) => pageErrors.push(error.message))
+
+  await page.goto('/')
+  await expect(page.locator('.stage-metrics strong').first()).not.toHaveText('—')
+
+  await page.getByRole('slider', { name: /Generations/ }).fill('4')
+  await page.getByRole('slider', { name: /Turn angle/ }).fill('33.5')
+  await page.getByRole('slider', { name: /Wildness/ }).fill('4.5')
+  await page.getByRole('textbox', { name: 'Seed' }).fill('shared-moss')
+  await page.getByLabel('Root', { exact: true }).fill('#112233')
+  await page.getByLabel('Crown', { exact: true }).fill('#44aa66')
+  await page.getByLabel('Bloom', { exact: true }).fill('#ffe080')
+  await page.getByRole('slider', { name: /Weight/ }).fill('4.2')
+  await page.getByRole('slider', { name: /Taper/ }).fill('0.82')
+  await page.getByRole('slider', { name: /Radiance/ }).fill('11')
+  await page.getByRole('checkbox', { name: /Terminal blooms/ }).uncheck()
+  await page.getByRole('textbox', { name: 'Axiom' }).fill('F')
+  await page.getByRole('textbox', { name: 'Rule 2 production' }).fill('F+F')
+
+  await expect(page.locator('.stage-metrics strong').nth(0)).toHaveText('16')
+  await page.getByRole('button', { name: 'Copy share link' }).click()
+  await expect(page.getByText('Share link copied.')).toBeVisible()
+
+  const sharedUrl = page.url()
+  const payload = new URL(sharedUrl).searchParams.get('art')
+  expect(payload?.length).toBeGreaterThan(100)
+  await expect
+    .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+    .toBe(sharedUrl)
+
+  await page.goto(sharedUrl)
+
+  await expect(page.getByText('Shared artwork restored.')).toBeVisible()
+  await expect(page.getByRole('slider', { name: /Generations/ })).toHaveValue('4')
+  await expect(page.getByRole('slider', { name: /Turn angle/ })).toHaveValue('33.5')
+  await expect(page.getByRole('slider', { name: /Wildness/ })).toHaveValue('4.5')
+  await expect(page.getByRole('textbox', { name: 'Seed' })).toHaveValue('shared-moss')
+  await expect(page.getByLabel('Root', { exact: true })).toHaveValue('#112233')
+  await expect(page.getByLabel('Crown', { exact: true })).toHaveValue('#44aa66')
+  await expect(page.getByLabel('Bloom', { exact: true })).toHaveValue('#ffe080')
+  await expect(page.getByRole('slider', { name: /Weight/ })).toHaveValue('4.2')
+  await expect(page.getByRole('slider', { name: /Taper/ })).toHaveValue('0.82')
+  await expect(page.getByRole('slider', { name: /Radiance/ })).toHaveValue('11')
+  await expect(page.getByRole('checkbox', { name: /Terminal blooms/ })).not.toBeChecked()
+  await expect(page.getByRole('textbox', { name: 'Axiom' })).toHaveValue('F')
+  await expect(page.getByRole('textbox', { name: 'Rule 2 production' })).toHaveValue('F+F')
+  await expect(page.locator('.stage-metrics strong').nth(0)).toHaveText('16')
+  await expect(page.locator('.stage-metrics strong').nth(1)).toHaveText('31')
+
+  const restoredPayload = new URL(page.url()).searchParams.get('art')
+  await page.getByRole('textbox', { name: 'Seed' }).fill('shared-fern')
+  await expect
+    .poll(() => new URL(page.url()).searchParams.get('art'))
+    .not.toBe(restoredPayload)
+
+  const synchronizedUrl = page.url()
+  await page.goto(synchronizedUrl)
+  await expect(page.getByRole('textbox', { name: 'Seed' })).toHaveValue('shared-fern')
+  expect(pageErrors).toEqual([])
+})
+
+test('falls back safely from a malformed artwork URL', async ({ page }) => {
+  const pageErrors: string[] = []
+  page.on('pageerror', (error) => pageErrors.push(error.message))
+
+  await page.goto('/?art=not-valid')
+
+  await expect(page.getByText('This share link could not be restored. Showing the default artwork.')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Verdant Bloom', level: 1 })).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'Axiom' })).toHaveValue('X')
+  await expect(page.locator('.stage-metrics strong').first()).not.toHaveText('—')
+  expect(pageErrors).toEqual([])
+})
