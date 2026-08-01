@@ -90,7 +90,7 @@ test('applies wind and gravity to generated geometry', async ({ page }) => {
   )
 
   await page.getByRole('slider', { name: 'Gravity' }).fill('0.8')
-  await expect(page.getByText('80%')).toBeVisible()
+  await expect(page.getByText('80% ↓')).toBeVisible()
   await expect.poll(() => canvas.evaluate((element) =>
     (element as HTMLCanvasElement).toDataURL('image/png'),
   )).not.toBe(windData)

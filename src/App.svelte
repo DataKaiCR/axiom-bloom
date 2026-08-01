@@ -1014,7 +1014,7 @@
       </section>
 
       <section class="control-section">
-        <div class="section-heading"><span>Environment</span><small>Forces</small></div>
+        <div class="section-heading"><span>Environment</span><small>Bend + droop</small></div>
 
         <label class="range-control">
           <span><b>Wind</b><output>{formatWind(wind)}</output></span>
@@ -1029,7 +1029,7 @@
         </label>
 
         <label class="range-control">
-          <span><b>Gravity</b><output>{Math.round(gravity * 100)}%</output></span>
+          <span><b>Gravity</b><output>{Math.round(gravity * 100)}% ↓</output></span>
           <input
             type="range"
             min={ARTWORK_LIMITS.gravity.min}

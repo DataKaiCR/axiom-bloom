@@ -10,7 +10,8 @@ import {
 } from './types'
 
 const WIND_TROPISM = 0.018
-const GRAVITY_TROPISM = 0.014
+const GRAVITY_TROPISM = 0.035
+const GRAVITY_DEPTH_RESPONSE = 0.12
 
 interface TurtleState {
   x: number
@@ -159,7 +160,10 @@ function applyTropism(
   settings: InterpreterSettings,
 ): void {
   const windTurn = -Math.sin(state.heading) * settings.wind * WIND_TROPISM
-  const gravityTurn = Math.cos(state.heading) * settings.gravity * GRAVITY_TROPISM
+  const gravityResponse = GRAVITY_TROPISM * (
+    1 + state.depth * GRAVITY_DEPTH_RESPONSE
+  )
+  const gravityTurn = Math.cos(state.heading) * settings.gravity * gravityResponse
   state.heading += windTurn + gravityTurn
 }
 
