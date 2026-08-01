@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { createDefaultViewport } from '../viewport'
 import {
   ARTWORK_STATE_VERSION,
   MAX_ARTWORK_PAYLOAD_LENGTH,
@@ -23,6 +24,7 @@ const artwork: ArtworkState = {
   taper: 0.82,
   glow: 11,
   showTips: false,
+  viewport: { zoom: 1.75, offsetX: -0.2, offsetY: 0.15 },
 }
 
 describe('artwork state URLs', () => {
@@ -39,6 +41,21 @@ describe('artwork state URLs', () => {
       value: {
         ...artwork,
         palette: { root: '#112233', crown: '#44aa66', accent: '#ffe080' },
+      },
+    })
+  })
+
+  it('restores version-one links with a fitted viewport', () => {
+    const legacyPayload = toPayload(artwork)
+    legacyPayload.v = 1
+    delete legacyPayload.u
+
+    expect(decodeArtworkState(encodeRaw(legacyPayload))).toEqual({
+      ok: true,
+      value: {
+        ...artwork,
+        palette: { root: '#112233', crown: '#44aa66', accent: '#ffe080' },
+        viewport: createDefaultViewport(),
       },
     })
   })
@@ -70,6 +87,11 @@ describe('artwork state URLs', () => {
     expect(
       decodeArtworkState(
         encodeRaw({ ...toPayload(artwork), g: 99 }),
+      ),
+    ).toEqual({ ok: false, reason: 'invalid-state' })
+    expect(
+      decodeArtworkState(
+        encodeRaw({ ...toPayload(artwork), u: [99, 0, 0] }),
       ),
     ).toEqual({ ok: false, reason: 'invalid-state' })
     expect(
@@ -111,6 +133,7 @@ function toPayload(state: ArtworkState): Record<string, unknown> {
     t: state.taper,
     l: state.glow,
     b: state.showTips ? 1 : 0,
+    u: [state.viewport.zoom, state.viewport.offsetX, state.viewport.offsetY],
   }
 }
 

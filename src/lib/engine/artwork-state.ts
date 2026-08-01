@@ -1,9 +1,15 @@
+import {
+  compactViewport,
+  createDefaultViewport,
+  isViewportState,
+  type ViewportState,
+} from '../viewport'
 import { validateGrammar, type ProductionRuleDraft } from './grammar'
 import { PRESETS } from './presets'
 import type { Palette } from './types'
 
 export const ARTWORK_QUERY_PARAMETER = 'art'
-export const ARTWORK_STATE_VERSION = 1
+export const ARTWORK_STATE_VERSION = 2
 export const MAX_ARTWORK_PAYLOAD_LENGTH = 8_192
 export const MAX_SEED_LENGTH = 128
 
@@ -28,6 +34,7 @@ export interface ArtworkState {
   taper: number
   glow: number
   showTips: boolean
+  viewport: ViewportState
 }
 
 export type ArtworkStateFailureReason =
@@ -40,8 +47,7 @@ export type ArtworkStateCodecResult<T> =
   | { ok: true; value: T }
   | { ok: false; reason: ArtworkStateFailureReason }
 
-interface ArtworkPayloadV1 {
-  v: 1
+interface ArtworkPayloadBase {
   p: string
   a: string
   r: [string, string][]
@@ -56,6 +62,11 @@ interface ArtworkPayloadV1 {
   b: 0 | 1
 }
 
+interface ArtworkPayloadV2 extends ArtworkPayloadBase {
+  v: 2
+  u: [number, number, number]
+}
+
 const HEX_COLOR = /^#[0-9a-f]{6}$/i
 const CONTROL_CHARACTER = /[\u0000-\u001f\u007f]/
 
@@ -65,7 +76,7 @@ export function encodeArtworkState(
   const normalized = normalizeArtworkState(state)
   if (!normalized) return { ok: false, reason: 'invalid-state' }
 
-  const payload: ArtworkPayloadV1 = {
+  const payload: ArtworkPayloadV2 = {
     v: ARTWORK_STATE_VERSION,
     p: normalized.presetId,
     a: normalized.axiom,
@@ -83,6 +94,11 @@ export function encodeArtworkState(
     t: normalized.taper,
     l: normalized.glow,
     b: normalized.showTips ? 1 : 0,
+    u: [
+      normalized.viewport.zoom,
+      normalized.viewport.offsetX,
+      normalized.viewport.offsetY,
+    ],
   }
 
   const encoded = encodeBase64Url(JSON.stringify(payload))
@@ -111,14 +127,23 @@ export function decodeArtworkState(
   }
 
   if (!isRecord(parsed)) return { ok: false, reason: 'malformed' }
-  if (typeof parsed.v === 'number' && parsed.v !== ARTWORK_STATE_VERSION) {
+  if (
+    typeof parsed.v === 'number' &&
+    parsed.v !== 1 &&
+    parsed.v !== ARTWORK_STATE_VERSION
+  ) {
     return { ok: false, reason: 'unsupported-version' }
   }
-  if (parsed.v !== ARTWORK_STATE_VERSION) {
+  if (parsed.v !== 1 && parsed.v !== ARTWORK_STATE_VERSION) {
     return { ok: false, reason: 'malformed' }
   }
 
-  const state = parseVersionOne(parsed)
+  const viewport = parsed.v === 1
+    ? createDefaultViewport()
+    : parseViewportPayload(parsed.u)
+  if (!viewport) return { ok: false, reason: 'invalid-state' }
+
+  const state = parseArtworkPayload(parsed, viewport)
   if (!state) return { ok: false, reason: 'invalid-state' }
 
   const normalized = normalizeArtworkState(state)
@@ -127,7 +152,10 @@ export function decodeArtworkState(
     : { ok: false, reason: 'invalid-state' }
 }
 
-function parseVersionOne(payload: Record<string, unknown>): ArtworkState | null {
+function parseArtworkPayload(
+  payload: Record<string, unknown>,
+  viewport: ViewportState,
+): ArtworkState | null {
   const rules = parseRules(payload.r)
   const palette = parsePalette(payload.c)
 
@@ -161,6 +189,7 @@ function parseVersionOne(payload: Record<string, unknown>): ArtworkState | null 
     taper: payload.t,
     glow: payload.l,
     showTips: payload.b === 1,
+    viewport,
   }
 }
 
@@ -183,7 +212,8 @@ function normalizeArtworkState(state: ArtworkState): ArtworkState | null {
     CONTROL_CHARACTER.test(state.seed) ||
     !isColor(state.palette.root) ||
     !isColor(state.palette.crown) ||
-    !isColor(state.palette.accent)
+    !isColor(state.palette.accent) ||
+    !isViewportState(state.viewport)
   ) {
     return null
   }
@@ -200,7 +230,23 @@ function normalizeArtworkState(state: ArtworkState): ArtworkState | null {
       crown: state.palette.crown.toLowerCase(),
       accent: state.palette.accent.toLowerCase(),
     },
+    viewport: compactViewport(state.viewport),
   }
+}
+
+function parseViewportPayload(value: unknown): ViewportState | null {
+  if (
+    !Array.isArray(value) ||
+    value.length !== 3 ||
+    typeof value[0] !== 'number' ||
+    typeof value[1] !== 'number' ||
+    typeof value[2] !== 'number'
+  ) {
+    return null
+  }
+
+  const viewport = { zoom: value[0], offsetX: value[1], offsetY: value[2] }
+  return isViewportState(viewport) ? viewport : null
 }
 
 function parseRules(value: unknown): ProductionRuleDraft[] | null {
