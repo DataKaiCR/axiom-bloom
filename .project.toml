@@ -28,7 +28,7 @@ started = "2023-04-12"
 completed = ""
 
 [links]
-repository = "https://github.com/DataKaiCR/visualizing-lsystems"
+repository = "https://github.com/DataKaiCR/axiom-bloom"
 documentation = "README.md"
 
 [notes]

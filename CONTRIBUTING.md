@@ -7,8 +7,8 @@ Thank you for helping grow Axiom Bloom. This is a public DataKai project for gen
 A current Node.js release is required; Node 24 or newer is recommended.
 
 ```bash
-git clone https://github.com/DataKaiCR/visualizing-lsystems.git
-cd visualizing-lsystems
+git clone https://github.com/DataKaiCR/axiom-bloom.git
+cd axiom-bloom
 npm install
 npm run dev
 ```
