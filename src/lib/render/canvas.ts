@@ -1,4 +1,5 @@
 import { SEGMENT_STRIDE, TIP_STRIDE, type Geometry, type Palette } from '../engine/types'
+import { constrainViewport, type ViewportState } from '../viewport'
 
 export interface RenderStyle {
   palette: Palette
@@ -13,6 +14,7 @@ export function renderCanvas(
   canvas: HTMLCanvasElement,
   geometry: Geometry,
   style: RenderStyle,
+  viewportState: ViewportState,
   progress = 1,
 ): void {
   const context = canvas.getContext('2d')
@@ -35,7 +37,7 @@ export function renderCanvas(
 
   if (geometry.segmentCount === 0) return
 
-  const viewport = createViewport(geometry, width, height)
+  const viewport = createViewport(geometry, width, height, viewportState)
   const visibleSegments = Math.min(
     geometry.segmentCount,
     Math.ceil(geometry.segmentCount * clamp(progress, 0, 1)),
@@ -57,7 +59,10 @@ export function renderCanvas(
       viewport.y(geometry.segments[offset + 3]),
     )
     context.strokeStyle = color
-    context.lineWidth = Math.max(0.7, style.trunkWidth * style.taper ** depth)
+    context.lineWidth = Math.max(
+      0.7,
+      style.trunkWidth * style.taper ** depth * viewport.zoom,
+    )
     context.shadowColor = color
     context.shadowBlur = style.glow
     context.stroke()
@@ -116,7 +121,10 @@ function drawTips(
     if (segmentIndex > visibleSegments) continue
 
     const depth = geometry.tips[offset + 2]
-    const radius = Math.max(1.8, style.trunkWidth * style.taper ** depth * 0.72)
+    const radius = Math.max(
+      1.8,
+      style.trunkWidth * style.taper ** depth * 0.72 * viewport.zoom,
+    )
     const x = viewport.x(geometry.tips[offset])
     const y = viewport.y(geometry.tips[offset + 1])
 
@@ -133,21 +141,31 @@ function drawTips(
   }
 }
 
-function createViewport(geometry: Geometry, width: number, height: number) {
+function createViewport(
+  geometry: Geometry,
+  width: number,
+  height: number,
+  viewportState: ViewportState,
+) {
   const { minX, minY, maxX, maxY } = geometry.bounds
   const contentWidth = Math.max(1, maxX - minX)
   const contentHeight = Math.max(1, maxY - minY)
   const padding = Math.max(32, Math.min(width, height) * 0.09)
-  const scale = Math.min(
-    (width - padding * 2) / contentWidth,
-    (height - padding * 2) / contentHeight,
+  const fittedScale = Math.min(
+    Math.max(1, width - padding * 2) / contentWidth,
+    Math.max(1, height - padding * 2) / contentHeight,
   )
   const centerX = (minX + maxX) / 2
   const centerY = (minY + maxY) / 2
+  const state = constrainViewport(viewportState)
+  const scale = fittedScale * state.zoom
+  const originX = width / 2 + state.offsetX * width
+  const originY = height / 2 + state.offsetY * height
 
   return {
-    x: (value: number) => (value - centerX) * scale + width / 2,
-    y: (value: number) => (value - centerY) * scale + height / 2,
+    zoom: state.zoom,
+    x: (value: number) => (value - centerX) * scale + originX,
+    y: (value: number) => (value - centerY) * scale + originY,
   }
 }
 

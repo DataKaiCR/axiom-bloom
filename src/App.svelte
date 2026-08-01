@@ -23,6 +23,18 @@
   } from './lib/engine/types'
   import { renderCanvas, type RenderStyle } from './lib/render/canvas'
   import { createSvg, downloadSvg } from './lib/render/svg'
+  import {
+    VIEWPORT_LIMITS,
+    VIEWPORT_STORAGE_KEY,
+    createDefaultViewport,
+    isDefaultViewport,
+    panViewport,
+    parseViewport,
+    serializeViewport,
+    zoomViewportAt,
+    type ViewportPoint,
+    type ViewportState,
+  } from './lib/viewport'
 
   interface EditableRule extends ProductionRuleDraft {
     id: number
@@ -33,10 +45,23 @@
     message: string
   }
 
+  interface PointerPosition {
+    x: number
+    y: number
+  }
+
+  interface ViewportGesture {
+    viewport: ViewportState
+    anchor: ViewportPoint
+    distance: number
+  }
+
   const initialPreset = PRESETS[0]
   const seedWords = ['moss', 'lumen', 'fern', 'ember', 'dawn', 'willow', 'echo', 'rain']
+  const activePointers = new Map<number, PointerPosition>()
 
   let canvas: HTMLCanvasElement
+  let viewportSurface: HTMLButtonElement
   let worker: Worker
   let resizeObserver: ResizeObserver
   let animationFrame = 0
@@ -44,6 +69,7 @@
   let latestRequest = 0
   let nextRuleId = 0
   let shareFeedbackTimer = 0
+  let viewportGesture: ViewportGesture | null = null
 
   let workerReady = $state(false)
   let browserReady = $state(false)
@@ -67,6 +93,8 @@
   let errorMessage = $state('')
   let elapsedMs = $state(0)
   let shareFeedback = $state<ShareFeedback | null>(null)
+  let viewport = $state<ViewportState>(createDefaultViewport())
+  let viewportDragging = $state(false)
 
   let selectedPreset = $derived(getPreset(presetId))
   let grammarValidation = $derived(validateGrammar(grammarAxiom, grammarRules))
@@ -93,6 +121,7 @@
     axiom: grammarValidation.axiom,
     rules: grammarValidation.rules,
   })
+  let viewportAtDefault = $derived(isDefaultViewport(viewport))
   let renderStyle = $derived<RenderStyle>({
     palette: { root: rootColor, crown: crownColor, accent: accentColor },
     background: '#06100c',
@@ -137,10 +166,29 @@
   $effect(() => {
     const nextGeometry = geometry
     const nextStyle = renderStyle
+    const nextViewport = viewport
 
     if (canvas && nextGeometry) {
-      renderCanvas(canvas, nextGeometry, nextStyle, currentProgress)
+      renderCanvas(canvas, nextGeometry, nextStyle, nextViewport, currentProgress)
     }
+  })
+
+  $effect(() => {
+    if (!browserReady) return
+
+    const nextViewport = viewport
+    const timeout = window.setTimeout(() => {
+      try {
+        window.localStorage.setItem(
+          VIEWPORT_STORAGE_KEY,
+          serializeViewport(nextViewport),
+        )
+      } catch {
+        // Storage can be unavailable in restricted browser contexts.
+      }
+    }, 150)
+
+    return () => window.clearTimeout(timeout)
   })
 
   $effect(() => {
@@ -161,6 +209,7 @@
   })
 
   onMount(() => {
+    restoreViewport()
     hydrateArtworkFromUrl()
 
     worker = new Worker(new URL('./lib/engine/engine.worker.ts', import.meta.url), {
@@ -232,6 +281,7 @@
     glow = next.appearance.glow
     showTips = next.appearance.showTips
     resetGrammar(next)
+    recenterViewport()
   }
 
   function resetGrammar(preset: LSystemPreset = selectedPreset): void {
@@ -254,6 +304,15 @@
         (issue) => issue.field === field && issue.ruleIndex === ruleIndex,
       )?.message ?? ''
     )
+  }
+
+  function restoreViewport(): void {
+    try {
+      const stored = parseViewport(window.localStorage.getItem(VIEWPORT_STORAGE_KEY))
+      if (stored) viewport = stored
+    } catch {
+      // Keep the fitted viewport when storage is unavailable.
+    }
   }
 
   function hydrateArtworkFromUrl(): void {
@@ -286,6 +345,7 @@
     showTips = state.showTips
     grammarAxiom = state.axiom
     grammarRules = createEditableRuleDrafts(state.rules)
+    viewport = state.viewport
   }
 
   function createArtworkState(): ArtworkState {
@@ -305,6 +365,7 @@
       taper,
       glow,
       showTips,
+      viewport,
     }
   }
 
@@ -368,6 +429,158 @@
     return 'This share link could not be restored. Showing the default artwork.'
   }
 
+  function handleCanvasPointerDown(event: PointerEvent): void {
+    if (event.pointerType === 'mouse' && event.button !== 0) return
+
+    event.preventDefault()
+    viewportSurface.focus({ preventScroll: true })
+    viewportSurface.setPointerCapture(event.pointerId)
+    activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
+    viewportDragging = true
+    restartViewportGesture()
+  }
+
+  function handleCanvasPointerMove(event: PointerEvent): void {
+    if (!activePointers.has(event.pointerId) || !viewportGesture) return
+
+    activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
+    const pointers = [...activePointers.values()]
+
+    if (pointers.length === 1 && viewportGesture.distance === 0) {
+      const current = normalizeCanvasPoint(pointers[0])
+      viewport = panViewport(
+        viewportGesture.viewport,
+        current.x - viewportGesture.anchor.x,
+        current.y - viewportGesture.anchor.y,
+      )
+      return
+    }
+
+    if (pointers.length >= 2 && viewportGesture.distance > 0) {
+      const midpoint = pointerMidpoint(pointers[0], pointers[1])
+      const distance = pointerDistance(pointers[0], pointers[1])
+      const nextZoom = viewportGesture.viewport.zoom * distance / viewportGesture.distance
+      viewport = zoomViewportAt(
+        viewportGesture.viewport,
+        nextZoom,
+        viewportGesture.anchor,
+        normalizeCanvasPoint(midpoint),
+      )
+    }
+  }
+
+  function handleCanvasPointerEnd(event: PointerEvent): void {
+    activePointers.delete(event.pointerId)
+    viewportDragging = activePointers.size > 0
+    restartViewportGesture()
+  }
+
+  function handleCanvasWheel(event: WheelEvent): void {
+    event.preventDefault()
+    const rect = canvas.getBoundingClientRect()
+    const deltaScale = event.deltaMode === WheelEvent.DOM_DELTA_LINE
+      ? 16
+      : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+        ? rect.height
+        : 1
+    const factor = Math.exp(-event.deltaY * deltaScale * 0.0015)
+    viewport = zoomViewportAt(
+      viewport,
+      viewport.zoom * factor,
+      normalizeCanvasPoint({ x: event.clientX, y: event.clientY }),
+    )
+  }
+
+  function handleCanvasKeydown(event: KeyboardEvent): void {
+    const panStep = 0.06
+    let handled = true
+
+    switch (event.key) {
+      case '+':
+      case '=':
+        zoomViewportBy(1.25)
+        break
+      case '-':
+      case '_':
+        zoomViewportBy(0.8)
+        break
+      case '0':
+      case 'Home':
+        recenterViewport()
+        break
+      case 'ArrowLeft':
+        viewport = panViewport(viewport, -panStep, 0)
+        break
+      case 'ArrowRight':
+        viewport = panViewport(viewport, panStep, 0)
+        break
+      case 'ArrowUp':
+        viewport = panViewport(viewport, 0, -panStep)
+        break
+      case 'ArrowDown':
+        viewport = panViewport(viewport, 0, panStep)
+        break
+      default:
+        handled = false
+    }
+
+    if (handled) event.preventDefault()
+  }
+
+  function zoomViewportBy(factor: number): void {
+    viewport = zoomViewportAt(
+      viewport,
+      viewport.zoom * factor,
+      { x: 0.5, y: 0.5 },
+    )
+  }
+
+  function recenterViewport(): void {
+    viewport = createDefaultViewport()
+  }
+
+  function restartViewportGesture(): void {
+    const pointers = [...activePointers.values()]
+    if (pointers.length === 0) {
+      viewportGesture = null
+      return
+    }
+
+    if (pointers.length === 1) {
+      viewportGesture = {
+        viewport: { ...viewport },
+        anchor: normalizeCanvasPoint(pointers[0]),
+        distance: 0,
+      }
+      return
+    }
+
+    viewportGesture = {
+      viewport: { ...viewport },
+      anchor: normalizeCanvasPoint(pointerMidpoint(pointers[0], pointers[1])),
+      distance: Math.max(1, pointerDistance(pointers[0], pointers[1])),
+    }
+  }
+
+  function normalizeCanvasPoint(point: PointerPosition): ViewportPoint {
+    const rect = canvas.getBoundingClientRect()
+    return {
+      x: (point.x - rect.left) / Math.max(1, rect.width),
+      y: (point.y - rect.top) / Math.max(1, rect.height),
+    }
+  }
+
+  function pointerMidpoint(
+    first: PointerPosition,
+    second: PointerPosition,
+  ): PointerPosition {
+    return { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 }
+  }
+
+  function pointerDistance(first: PointerPosition, second: PointerPosition): number {
+    return Math.hypot(second.x - first.x, second.y - first.y)
+  }
+
   function startAnimation(): void {
     if (!geometry) return
 
@@ -398,7 +611,7 @@
 
   function drawCurrentFrame(): void {
     if (canvas && geometry) {
-      renderCanvas(canvas, geometry, renderStyle, currentProgress)
+      renderCanvas(canvas, geometry, renderStyle, viewport, currentProgress)
     }
   }
 
@@ -506,7 +719,59 @@
 
   <main class="workspace">
     <section class="canvas-stage" aria-label="Generated artwork">
-      <canvas bind:this={canvas}></canvas>
+      <button
+        bind:this={viewportSurface}
+        class="viewport-surface"
+        class:dragging={viewportDragging}
+        type="button"
+        aria-label="Interactive artwork viewport"
+        aria-describedby="viewport-instructions"
+        aria-keyshortcuts="+ - 0 Home ArrowUp ArrowDown ArrowLeft ArrowRight"
+        onpointerdown={handleCanvasPointerDown}
+        onpointermove={handleCanvasPointerMove}
+        onpointerup={handleCanvasPointerEnd}
+        onpointercancel={handleCanvasPointerEnd}
+        onlostpointercapture={handleCanvasPointerEnd}
+        onwheel={handleCanvasWheel}
+        onkeydown={handleCanvasKeydown}
+        ondblclick={recenterViewport}
+      >
+        <canvas bind:this={canvas}></canvas>
+      </button>
+      <span class="sr-only" id="viewport-instructions">
+        Drag to pan. Use the wheel, plus and minus keys, or viewport controls to zoom.
+        Press zero or Home to recenter.
+      </span>
+
+      <div class="viewport-toolbar">
+        <div class="viewport-controls" role="group" aria-label="Artwork viewport controls">
+          <button
+            type="button"
+            onclick={() => zoomViewportBy(0.8)}
+            disabled={viewport.zoom <= VIEWPORT_LIMITS.zoom.min}
+            aria-label="Zoom out"
+          >−</button>
+          <output aria-label="Zoom level">{Math.round(viewport.zoom * 100)}%</output>
+          <button
+            type="button"
+            onclick={() => zoomViewportBy(1.25)}
+            disabled={viewport.zoom >= VIEWPORT_LIMITS.zoom.max}
+            aria-label="Zoom in"
+          >+</button>
+          <button
+            class="recenter-button"
+            type="button"
+            onclick={recenterViewport}
+            disabled={viewportAtDefault}
+            aria-label="Recenter artwork"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5M9 12h6M12 9v6"/>
+            </svg>
+          </button>
+        </div>
+        <span>Drag to pan · Scroll to zoom</span>
+      </div>
 
       <div class="stage-heading">
         <span>

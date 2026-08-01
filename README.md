@@ -9,7 +9,7 @@ Axiom Bloom is an interactive generative-art studio for exploring Lindenmayer sy
 - Correct, symbol-agnostic L-system rewriting
 - Deterministic seeded variation
 - Web Worker generation with a 500,000-symbol safety limit
-- Animated, depth-aware Canvas rendering
+- Animated, depth-aware Canvas rendering with pan and zoom navigation
 - Editable axioms and production rules with inline validation
 - Versioned share links that restore complete, deterministic artworks
 - Live generation, angle, palette, taper, glow, and seed controls
@@ -55,11 +55,17 @@ Choose a specimen, then edit its axiom and production rows in the Grammar panel.
 
 The selected specimen still defines which symbols draw or move the turtle, along with its step size and starting angle. This makes it possible to experiment with rewriting rules without losing the specimen's visual interpretation.
 
+## Navigating the canvas
+
+Drag with a mouse, pen, or one finger to pan. Use the wheel, a two-finger pinch, the on-canvas controls, or the plus and minus keys to zoom around the current focal point. The recenter control, zero key, Home key, or a double-click restores the fitted view.
+
+The viewport is saved locally and restored on reload. PNG export captures the current Canvas composition; SVG export remains fitted to the complete generated artwork.
+
 ## Sharing artwork
 
-Use **Copy link** to create a versioned URL containing the specimen, grammar, generation settings, seed, palette, branch styling, glow, and terminal-bloom preference. Once sharing is enabled, later valid edits keep that URL synchronized without reloading the page.
+Use **Copy link** to create a versioned URL containing the specimen, grammar, generation settings, seed, palette, branch styling, glow, terminal-bloom preference, and viewport composition. Once sharing is enabled, later valid edits keep that URL synchronized without reloading the page.
 
-Share data is stored in one URL-safe `art` query parameter and is limited to 8,192 encoded characters. Malformed, oversized, invalid, or unsupported versions fall back to the default artwork instead of reaching the worker.
+Share data is stored in one URL-safe `art` query parameter and is limited to 8,192 encoded characters. Version-two links include viewport state, while version-one links remain supported with a fitted view. Malformed, oversized, invalid, or unsupported versions fall back to the default artwork instead of reaching the worker.
 
 ## Legacy prototype
 
