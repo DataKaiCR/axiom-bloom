@@ -23,6 +23,10 @@ The post-remediation scan evaluated 23 files. All 23 were covered; none were deg
 
 No waiver or project-local replacement rule was added. The accepted findings remain visible so future growth can trigger another review.
 
+## Follow-up
+
+The growth-playback implementation increased the corpus to 25 files. A follow-up scan covered all 25 without degraded or unavailable evidence and introduced no new findings; the five classifications above remain unchanged.
+
 ## Regression evidence
 
 Existing geometry, grammar, specimen-library, and browser tests protect the refactored behavior. SVG export now also has direct unit coverage for grouped paths, tip visibility, finite coordinates, and escaped metadata.

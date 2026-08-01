@@ -15,6 +15,14 @@
     type GrammarIssueField,
     type ProductionRuleDraft,
   } from './lib/engine/grammar'
+  import {
+    GROWTH_SPEED_LIMITS,
+    easeGrowthProgress,
+    getGrowthDuration,
+    linearizeGrowthProgress,
+    normalizeGrowthProgress,
+    normalizeGrowthSpeed,
+  } from './lib/growth-animation'
   import { PRESETS, getPreset } from './lib/engine/presets'
   import type {
     GenerationResponse,
@@ -66,7 +74,6 @@
   let worker: Worker
   let resizeObserver: ResizeObserver
   let animationFrame = 0
-  let currentProgress = 1
   let latestRequest = 0
   let nextRuleId = 0
   let shareFeedbackTimer = 0
@@ -96,6 +103,9 @@
   let shareFeedback = $state<ShareFeedback | null>(null)
   let viewport = $state<ViewportState>(createDefaultViewport())
   let viewportDragging = $state(false)
+  let growthProgress = $state(1)
+  let growthSpeed = $state<number>(GROWTH_SPEED_LIMITS.default)
+  let growthPlaying = $state(false)
 
   let selectedPreset = $derived(getPreset(presetId))
   let grammarValidation = $derived(validateGrammar(grammarAxiom, grammarRules))
@@ -123,6 +133,14 @@
     rules: grammarValidation.rules,
   })
   let viewportAtDefault = $derived(isDefaultViewport(viewport))
+  let growthPercent = $derived(Math.round(growthProgress * 100))
+  let growthActionLabel = $derived(
+    growthPlaying
+      ? 'Pause growth'
+      : growthPercent >= 100
+        ? 'Replay growth'
+        : 'Play growth',
+  )
   let renderStyle = $derived<RenderStyle>({
     palette: { root: rootColor, crown: crownColor, accent: accentColor },
     background: '#06100c',
@@ -168,9 +186,10 @@
     const nextGeometry = geometry
     const nextStyle = renderStyle
     const nextViewport = viewport
+    const nextProgress = growthProgress
 
     if (canvas && nextGeometry) {
-      renderCanvas(canvas, nextGeometry, nextStyle, nextViewport, currentProgress)
+      renderCanvas(canvas, nextGeometry, nextStyle, nextViewport, nextProgress)
     }
   })
 
@@ -230,10 +249,11 @@
       geometry = response.geometry
       elapsedMs = response.elapsedMs
       status = 'ready'
-      startAnimation()
+      replayGrowth()
     }
 
     worker.onerror = () => {
+      pauseGrowth()
       status = 'error'
       errorMessage = 'The generation worker stopped unexpectedly.'
     }
@@ -582,37 +602,78 @@
     return Math.hypot(second.x - first.x, second.y - first.y)
   }
 
-  function startAnimation(): void {
+  function replayGrowth(): void {
     if (!geometry) return
+    pauseGrowth()
+    growthProgress = 0
+    playGrowth()
+  }
 
+  function toggleGrowthPlayback(): void {
+    if (growthPlaying) {
+      pauseGrowth()
+      return
+    }
+    if (growthPercent >= 100) growthProgress = 0
+    playGrowth()
+  }
+
+  function playGrowth(): void {
+    if (!geometry) return
     window.cancelAnimationFrame(animationFrame)
 
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      currentProgress = 1
+      growthProgress = 1
+      growthPlaying = false
       drawCurrentFrame()
       return
     }
 
     const startedAt = performance.now()
-    const duration = Math.min(6_500, Math.max(2_400, 1_800 + geometry.segmentCount * 0.12))
-    currentProgress = 0
+    const startingProgress = linearizeGrowthProgress(growthProgress)
+    const duration = getGrowthDuration(geometry.segmentCount, growthSpeed)
+    growthPlaying = true
 
     const tick = (timestamp: number) => {
-      const linearProgress = Math.min(1, (timestamp - startedAt) / duration)
-      currentProgress = 1 - (1 - linearProgress) ** 3
-      drawCurrentFrame()
+      const linearProgress = Math.min(
+        1,
+        startingProgress + (timestamp - startedAt) / duration,
+      )
+      growthProgress = easeGrowthProgress(linearProgress)
 
       if (linearProgress < 1) {
         animationFrame = window.requestAnimationFrame(tick)
+      } else {
+        animationFrame = 0
+        growthPlaying = false
       }
     }
 
     animationFrame = window.requestAnimationFrame(tick)
   }
 
+  function pauseGrowth(): void {
+    window.cancelAnimationFrame(animationFrame)
+    animationFrame = 0
+    growthPlaying = false
+  }
+
+  function scrubGrowth(event: Event): void {
+    pauseGrowth()
+    const input = event.currentTarget as HTMLInputElement
+    growthProgress = normalizeGrowthProgress(Number(input.value) / 100)
+  }
+
+  function changeGrowthSpeed(event: Event): void {
+    const wasPlaying = growthPlaying
+    const input = event.currentTarget as HTMLInputElement
+    growthSpeed = normalizeGrowthSpeed(Number(input.value))
+    if (wasPlaying) playGrowth()
+  }
+
   function drawCurrentFrame(): void {
     if (canvas && geometry) {
-      renderCanvas(canvas, geometry, renderStyle, viewport, currentProgress)
+      renderCanvas(canvas, geometry, renderStyle, viewport, growthProgress)
     }
   }
 
@@ -630,7 +691,8 @@
 
   function savePng(): void {
     if (!geometry || !grammarValidation.valid) return
-    currentProgress = 1
+    pauseGrowth()
+    growthProgress = 1
     drawCurrentFrame()
     canvas.toBlob((blob) => {
       if (!blob) return
@@ -679,7 +741,7 @@
               ? 'Interrupted'
               : 'Engine ready'}
       </span>
-      <button class="ghost-button" type="button" onclick={startAnimation} disabled={!geometry}>
+      <button class="ghost-button" type="button" onclick={replayGrowth} disabled={!geometry}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.34-5.66L4 8.68M4 4v4.68h4.68"/></svg>
         Replay
       </button>
@@ -745,6 +807,55 @@
       </span>
 
       <div class="viewport-toolbar">
+        <div class="growth-controls" role="group" aria-label="Growth playback controls">
+          <div class="growth-timeline">
+            <button
+              type="button"
+              onclick={toggleGrowthPlayback}
+              disabled={!geometry}
+              aria-label={growthActionLabel}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                {#if growthPlaying}
+                  <path d="M8 5v14M16 5v14"/>
+                {:else}
+                  <path d="m8 5 11 7-11 7Z"/>
+                {/if}
+              </svg>
+            </button>
+            <label class="growth-progress-control">
+              <span class="sr-only">Growth progress</span>
+              <input
+                id="growth-progress"
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                value={growthPercent}
+                oninput={scrubGrowth}
+                disabled={!geometry}
+                aria-label="Growth progress"
+                aria-valuetext={`${growthPercent}% grown`}
+              />
+            </label>
+            <output for="growth-progress" aria-label="Growth completion">{growthPercent}%</output>
+          </div>
+          <label class="growth-speed-control">
+            <span>Speed</span>
+            <input
+              id="growth-speed"
+              type="range"
+              min={GROWTH_SPEED_LIMITS.min}
+              max={GROWTH_SPEED_LIMITS.max}
+              step="0.25"
+              value={growthSpeed}
+              oninput={changeGrowthSpeed}
+              disabled={!geometry}
+              aria-label="Growth speed"
+            />
+            <output for="growth-speed" aria-label="Growth speed value">{growthSpeed}×</output>
+          </label>
+        </div>
         <div class="viewport-controls" role="group" aria-label="Artwork viewport controls">
           <button
             type="button"

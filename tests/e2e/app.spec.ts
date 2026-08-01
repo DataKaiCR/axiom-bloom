@@ -24,6 +24,50 @@ test('grows artwork and switches between presets', async ({ page }) => {
   expect(pageErrors).toEqual([])
 })
 
+test('pauses, scrubs, and changes growth playback', async ({ page }) => {
+  const pageErrors: string[] = []
+  page.on('pageerror', (error) => pageErrors.push(error.message))
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+
+  await page.goto('/')
+  await expect(page.locator('.stage-metrics strong').first()).not.toHaveText('—')
+
+  const progress = page.getByRole('slider', { name: 'Growth progress' })
+  await progress.fill('0')
+  await page.getByRole('button', { name: 'Play growth' }).click()
+  await expect(page.getByRole('button', { name: 'Pause growth' })).toBeVisible()
+  await expect.poll(async () => Number(await progress.inputValue())).toBeGreaterThan(0)
+
+  await page.getByRole('button', { name: 'Pause growth' }).click()
+  const pausedProgress = await progress.inputValue()
+  await page.waitForTimeout(150)
+  await expect(progress).toHaveValue(pausedProgress)
+
+  await progress.fill('25')
+  await expect(page.getByLabel('Growth completion')).toHaveText('25%')
+  await page.getByRole('slider', { name: 'Growth speed' }).fill('2')
+  await expect(page.getByLabel('Growth speed value')).toHaveText('2×')
+  await page.getByRole('button', { name: 'Play growth' }).click()
+  await expect.poll(async () => Number(await progress.inputValue())).toBeGreaterThan(25)
+  expect(pageErrors).toEqual([])
+})
+
+test('honors reduced motion during growth playback', async ({ page }) => {
+  const pageErrors: string[] = []
+  page.on('pageerror', (error) => pageErrors.push(error.message))
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.goto('/')
+  await expect(page.locator('.stage-metrics strong').first()).not.toHaveText('—')
+
+  const progress = page.getByRole('slider', { name: 'Growth progress' })
+  await expect(progress).toHaveValue('100')
+  await progress.fill('40')
+  await page.getByRole('button', { name: 'Play growth' }).click()
+  await expect(progress).toHaveValue('100')
+  await expect(page.getByRole('button', { name: 'Replay growth' })).toBeVisible()
+  expect(pageErrors).toEqual([])
+})
+
 test('edits, validates, and resets a custom grammar', async ({ page }) => {
   const pageErrors: string[] = []
   page.on('pageerror', (error) => pageErrors.push(error.message))

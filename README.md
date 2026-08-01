@@ -9,7 +9,7 @@ Axiom Bloom is an interactive generative-art studio for exploring Lindenmayer sy
 - Correct, symbol-agnostic L-system rewriting
 - Deterministic seeded variation
 - Web Worker generation with a 500,000-symbol safety limit
-- Animated, depth-aware Canvas rendering with pan and zoom navigation
+- Animated, depth-aware Canvas rendering with playback, scrubbing, pan, and zoom controls
 - Editable axioms and production rules with inline validation
 - Versioned share links that restore complete, deterministic artworks
 - A local specimen library for named custom artwork snapshots
@@ -61,7 +61,13 @@ The selected specimen still defines which symbols draw or move the turtle, along
 
 Drag with a mouse, pen, or one finger to pan. Use the wheel, a two-finger pinch, the on-canvas controls, or the plus and minus keys to zoom around the current focal point. The recenter control, zero key, Home key, or a double-click restores the fitted view.
 
-The viewport is saved locally and restored on reload. PNG export captures the current Canvas composition; SVG export remains fitted to the complete generated artwork.
+The viewport is saved locally and restored on reload. PNG export captures the current viewport composition after completing growth; SVG export remains fitted to the complete generated artwork.
+
+## Controlling growth
+
+Use the on-canvas playback controls to pause or resume growth, drag the timeline to inspect any stage, and adjust playback from 0.25× to 3× speed. Replaying or generating new geometry starts from the root, while scrubbing pauses at the selected stage. Browsers requesting reduced motion show completed artwork immediately but still allow manual timeline inspection.
+
+Playback progress and speed affect only the presentation; they do not change the deterministic artwork stored in links or local specimens.
 
 ## Sharing artwork
 
