@@ -17,7 +17,7 @@ Build a beautiful, fast, and approachable studio where people grow art from form
 
 ## Interactive Studio
 
-- [ ] Add editable axioms and production rules with inline validation
+- [x] Add editable axioms and production rules with inline validation
 - [ ] Add pan, zoom, recenter, and viewport persistence
 - [ ] Encode reproducible artwork settings in shareable URLs
 - [ ] Add a preset browser with saved local specimens
@@ -33,15 +33,15 @@ Build a beautiful, fast, and approachable studio where people grow art from form
 
 ## Public Project
 
-- [ ] Reconcile the repository and local directory names with `axiom-bloom`
+- [x] Rename the public repository to `axiom-bloom`
 - [ ] Add public issue and pull-request templates
-- [ ] Add automated CI for unit, type, build, and browser gates
+- [x] Add automated CI for unit, type, build, and browser gates
 - [ ] Measure public support time against the declared weekly cap
 
 ## Polyglot Governance Dogfood
 
 - [ ] Publish a language-capability matrix from actual DKOS/dkkernel results
-- [ ] Verify TypeScript and Svelte files never receive silent zero-coverage passes
-- [ ] Exercise equivalent fixtures for Python, Go, Rust, and Zig
+- [x] Verify TypeScript and Svelte files never receive silent zero-coverage passes
+- [x] Exercise equivalent fixtures for Python, Go, Rust, and Zig
 - [ ] Record false positives, false negatives, degraded delegates, and unsupported files
-- [ ] Validate that public visibility selects public onboarding and commit rules
+- [x] Validate that public visibility selects public onboarding and commit rules
