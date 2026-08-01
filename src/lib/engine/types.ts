@@ -38,6 +38,8 @@ export interface GenerationSettings {
   generations: number
   angle: number
   turnJitter: number
+  wind: number
+  gravity: number
   seed: string
   maxSymbols: number
 }

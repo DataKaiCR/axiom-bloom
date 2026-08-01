@@ -22,6 +22,8 @@ const artwork: ArtworkState = {
   generations: 4,
   angle: 33.5,
   turnJitter: 4.5,
+  wind: -0.25,
+  gravity: 0.45,
   seed: 'library-moss',
   palette: { root: '#112233', crown: '#44aa66', accent: '#ffe080' },
   trunkWidth: 4.2,

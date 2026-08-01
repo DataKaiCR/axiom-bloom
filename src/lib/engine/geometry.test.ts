@@ -30,6 +30,8 @@ const settings: GenerationSettings = {
   generations: 0,
   angle: 90,
   turnJitter: 0,
+  wind: 0,
+  gravity: 0,
   seed: 'repeatable',
   maxSymbols: 10_000,
 }
@@ -60,7 +62,7 @@ describe('interpretCommands', () => {
   })
 
   it('produces repeatable geometry for a seed', () => {
-    const varied = { ...settings, turnJitter: 20 }
+    const varied = { ...settings, turnJitter: 20, wind: 0.4, gravity: 0.5 }
     const first = interpretCommands('F+F-F+F', preset, varied)
     const second = interpretCommands('F+F-F+F', preset, varied)
 
@@ -70,5 +72,25 @@ describe('interpretCommands', () => {
   it('rejects malformed branch syntax', () => {
     expect(() => interpretCommands('F]', preset, settings)).toThrow(SyntaxError)
     expect(() => interpretCommands('[F', preset, settings)).toThrow(SyntaxError)
+  })
+})
+
+describe('environmental forces', () => {
+  it('bends vertical growth in the direction of wind', () => {
+    const right = interpretCommands('FFFF', preset, { ...settings, wind: 1 })
+    const left = interpretCommands('FFFF', preset, { ...settings, wind: -1 })
+
+    expect(right.segments[17]).toBeGreaterThan(0.5)
+    expect(left.segments[17]).toBeLessThan(-0.5)
+  })
+
+  it('pulls horizontal growth downward with gravity', () => {
+    const horizontalPreset = { ...preset, startAngle: 0 }
+    const geometry = interpretCommands('FFFF', horizontalPreset, {
+      ...settings,
+      gravity: 1,
+    })
+
+    expect(geometry.segments[18]).toBeGreaterThan(0.5)
   })
 })

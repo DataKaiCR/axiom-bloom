@@ -86,6 +86,8 @@
   let generations = $state(initialPreset.defaultGenerations)
   let angle = $state(initialPreset.angle)
   let jitter = $state(initialPreset.turnJitter)
+  let wind = $state(0)
+  let gravity = $state(0)
   let seed = $state(initialPreset.seed)
   let rootColor = $state(initialPreset.appearance.palette.root)
   let crownColor = $state(initialPreset.appearance.palette.crown)
@@ -167,6 +169,8 @@
         generations,
         angle,
         turnJitter: jitter,
+        wind,
+        gravity,
         seed,
         maxSymbols: 500_000,
       },
@@ -293,6 +297,8 @@
     generations = next.defaultGenerations
     angle = next.angle
     jitter = next.turnJitter
+    wind = 0
+    gravity = 0
     seed = next.seed
     rootColor = next.appearance.palette.root
     crownColor = next.appearance.palette.crown
@@ -356,6 +362,8 @@
     generations = state.generations
     angle = state.angle
     jitter = state.turnJitter
+    wind = state.wind
+    gravity = state.gravity
     seed = state.seed
     rootColor = state.palette.root
     crownColor = state.palette.crown
@@ -380,6 +388,8 @@
       generations,
       angle,
       turnJitter: jitter,
+      wind,
+      gravity,
       seed,
       palette: { root: rootColor, crown: crownColor, accent: accentColor },
       trunkWidth,
@@ -709,6 +719,11 @@
     return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
   }
 
+  function formatWind(value: number): string {
+    if (value === 0) return 'Calm'
+    return `${Math.round(Math.abs(value) * 100)}% ${value < 0 ? '←' : '→'}`
+  }
+
   function formatNumber(value: number): string {
     return new Intl.NumberFormat('en-US').format(value)
   }
@@ -995,6 +1010,34 @@
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>
             </button>
           </div>
+        </label>
+      </section>
+
+      <section class="control-section">
+        <div class="section-heading"><span>Environment</span><small>Forces</small></div>
+
+        <label class="range-control">
+          <span><b>Wind</b><output>{formatWind(wind)}</output></span>
+          <input
+            type="range"
+            min={ARTWORK_LIMITS.wind.min}
+            max={ARTWORK_LIMITS.wind.max}
+            step="0.05"
+            bind:value={wind}
+            aria-label="Wind"
+          />
+        </label>
+
+        <label class="range-control">
+          <span><b>Gravity</b><output>{Math.round(gravity * 100)}%</output></span>
+          <input
+            type="range"
+            min={ARTWORK_LIMITS.gravity.min}
+            max={ARTWORK_LIMITS.gravity.max}
+            step="0.05"
+            bind:value={gravity}
+            aria-label="Gravity"
+          />
         </label>
       </section>
 

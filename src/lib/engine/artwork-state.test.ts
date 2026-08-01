@@ -18,6 +18,8 @@ const artwork: ArtworkState = {
   generations: 4,
   angle: 33.5,
   turnJitter: 4.5,
+  wind: 0.35,
+  gravity: 0.4,
   seed: 'moss-🌿',
   palette: { root: '#112233', crown: '#44AA66', accent: '#ffe080' },
   trunkWidth: 4.2,
@@ -49,13 +51,32 @@ describe('artwork state URLs', () => {
     const legacyPayload = toPayload(artwork)
     legacyPayload.v = 1
     delete legacyPayload.u
+    delete legacyPayload.e
 
     expect(decodeArtworkState(encodeRaw(legacyPayload))).toEqual({
       ok: true,
       value: {
         ...artwork,
         palette: { root: '#112233', crown: '#44aa66', accent: '#ffe080' },
+        wind: 0,
+        gravity: 0,
         viewport: createDefaultViewport(),
+      },
+    })
+  })
+
+  it('restores version-two links with neutral environmental effects', () => {
+    const legacyPayload = toPayload(artwork)
+    legacyPayload.v = 2
+    delete legacyPayload.e
+
+    expect(decodeArtworkState(encodeRaw(legacyPayload))).toEqual({
+      ok: true,
+      value: {
+        ...artwork,
+        palette: { root: '#112233', crown: '#44aa66', accent: '#ffe080' },
+        wind: 0,
+        gravity: 0,
       },
     })
   })
@@ -95,6 +116,16 @@ describe('artwork state URLs', () => {
       ),
     ).toEqual({ ok: false, reason: 'invalid-state' })
     expect(
+      decodeArtworkState(
+        encodeRaw({ ...toPayload(artwork), e: [2, 0] }),
+      ),
+    ).toEqual({ ok: false, reason: 'invalid-state' })
+    expect(
+      decodeArtworkState(
+        encodeRaw({ ...toPayload(artwork), e: ['wind', 0] }),
+      ),
+    ).toEqual({ ok: false, reason: 'invalid-state' })
+    expect(
       encodeArtworkState({ ...artwork, rules: [{ symbol: 'F', replacement: 'F[' }] }),
     ).toEqual({ ok: false, reason: 'invalid-state' })
   })
@@ -128,6 +159,7 @@ function toPayload(state: ArtworkState): Record<string, unknown> {
     d: state.angle,
     j: state.turnJitter,
     s: state.seed,
+    e: [state.wind, state.gravity],
     c: [state.palette.root, state.palette.crown, state.palette.accent],
     w: state.trunkWidth,
     t: state.taper,

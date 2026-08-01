@@ -68,6 +68,39 @@ test('honors reduced motion during growth playback', async ({ page }) => {
   expect(pageErrors).toEqual([])
 })
 
+test('applies wind and gravity to generated geometry', async ({ page }) => {
+  const pageErrors: string[] = []
+  page.on('pageerror', (error) => pageErrors.push(error.message))
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+
+  await page.goto('/')
+  await expect(page.locator('.stage-metrics strong').first()).not.toHaveText('—')
+  const canvas = page.locator('canvas')
+  const baseline = await canvas.evaluate((element) =>
+    (element as HTMLCanvasElement).toDataURL('image/png'),
+  )
+
+  await page.getByRole('slider', { name: 'Wind' }).fill('0.7')
+  await expect(page.getByText('70% →')).toBeVisible()
+  await expect.poll(() => canvas.evaluate((element) =>
+    (element as HTMLCanvasElement).toDataURL('image/png'),
+  )).not.toBe(baseline)
+  const windData = await canvas.evaluate((element) =>
+    (element as HTMLCanvasElement).toDataURL('image/png'),
+  )
+
+  await page.getByRole('slider', { name: 'Gravity' }).fill('0.8')
+  await expect(page.getByText('80%')).toBeVisible()
+  await expect.poll(() => canvas.evaluate((element) =>
+    (element as HTMLCanvasElement).toDataURL('image/png'),
+  )).not.toBe(windData)
+
+  await page.getByRole('button', { name: /Paper Dragon/ }).click()
+  await expect(page.getByRole('slider', { name: 'Wind' })).toHaveValue('0')
+  await expect(page.getByRole('slider', { name: 'Gravity' })).toHaveValue('0')
+  expect(pageErrors).toEqual([])
+})
+
 test('edits, validates, and resets a custom grammar', async ({ page }) => {
   const pageErrors: string[] = []
   page.on('pageerror', (error) => pageErrors.push(error.message))
@@ -114,6 +147,8 @@ test('copies and restores a complete artwork URL', async ({ page }) => {
   await page.getByRole('slider', { name: /Generations/ }).fill('4')
   await page.getByRole('slider', { name: /Turn angle/ }).fill('33.5')
   await page.getByRole('slider', { name: /Wildness/ }).fill('4.5')
+  await page.getByRole('slider', { name: 'Wind' }).fill('-0.35')
+  await page.getByRole('slider', { name: 'Gravity' }).fill('0.4')
   await page.getByRole('textbox', { name: 'Seed' }).fill('shared-moss')
   await page.getByLabel('Root', { exact: true }).fill('#112233')
   await page.getByLabel('Crown', { exact: true }).fill('#44aa66')
@@ -150,6 +185,8 @@ test('copies and restores a complete artwork URL', async ({ page }) => {
   await expect(page.getByRole('slider', { name: /Generations/ })).toHaveValue('4')
   await expect(page.getByRole('slider', { name: /Turn angle/ })).toHaveValue('33.5')
   await expect(page.getByRole('slider', { name: /Wildness/ })).toHaveValue('4.5')
+  await expect(page.getByRole('slider', { name: 'Wind' })).toHaveValue('-0.35')
+  await expect(page.getByRole('slider', { name: 'Gravity' })).toHaveValue('0.4')
   await expect(page.getByRole('textbox', { name: 'Seed' })).toHaveValue('shared-moss')
   await expect(page.getByLabel('Root', { exact: true })).toHaveValue('#112233')
   await expect(page.getByLabel('Crown', { exact: true })).toHaveValue('#44aa66')
@@ -234,6 +271,8 @@ test('saves, opens, and deletes a local specimen', async ({ page }) => {
   await expect(page.locator('.stage-metrics strong').first()).not.toHaveText('—')
 
   await page.getByRole('slider', { name: 'Generations' }).fill('4')
+  await page.getByRole('slider', { name: 'Wind' }).fill('-0.25')
+  await page.getByRole('slider', { name: 'Gravity' }).fill('0.45')
   await page.getByRole('textbox', { name: 'Seed' }).fill('library-moss')
   await page.getByRole('textbox', { name: 'Axiom' }).fill('F')
   await page.getByRole('textbox', { name: 'Rule 2 production' }).fill('F+F')
@@ -257,6 +296,8 @@ test('saves, opens, and deletes a local specimen', async ({ page }) => {
   await expect(page.getByText('Moss Study is now open.')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Verdant Bloom', level: 1 })).toBeVisible()
   await expect(page.getByRole('slider', { name: 'Generations' })).toHaveValue('4')
+  await expect(page.getByRole('slider', { name: 'Wind' })).toHaveValue('-0.25')
+  await expect(page.getByRole('slider', { name: 'Gravity' })).toHaveValue('0.45')
   await expect(page.getByRole('textbox', { name: 'Seed' })).toHaveValue('library-moss')
   await expect(page.getByRole('textbox', { name: 'Axiom' })).toHaveValue('F')
   await expect(page.getByRole('textbox', { name: 'Rule 2 production' })).toHaveValue('F+F')

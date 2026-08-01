@@ -13,7 +13,7 @@ Axiom Bloom is an interactive generative-art studio for exploring Lindenmayer sy
 - Editable axioms and production rules with inline validation
 - Versioned share links that restore complete, deterministic artworks
 - A local specimen library for named custom artwork snapshots
-- Live generation, angle, palette, taper, glow, and seed controls
+- Live generation, wind, gravity, angle, palette, taper, glow, and seed controls
 - Built-in botanical, dragon curve, and Sierpiński presets
 - PNG and consolidated SVG export
 - Responsive and reduced-motion-aware interface
@@ -69,11 +69,17 @@ Use the on-canvas playback controls to pause or resume growth, drag the timeline
 
 Playback progress and speed affect only the presentation; they do not change the deterministic artwork stored in links or local specimens.
 
+## Shaping the environment
+
+Use **Wind** to bend forward growth left or right and **Gravity** to pull lateral branches downward. Both forces adjust the turtle heading after each forward step, preserving connected branches while producing a different deterministic geometry. Choosing another built-in specimen resets the environment to calm conditions.
+
+Environmental forces are generated inside the worker and are preserved in share links, local specimens, PNG exports, and SVG exports.
+
 ## Sharing artwork
 
-Use **Copy link** to create a versioned URL containing the specimen, grammar, generation settings, seed, palette, branch styling, glow, terminal-bloom preference, and viewport composition. Once sharing is enabled, later valid edits keep that URL synchronized without reloading the page.
+Use **Copy link** to create a versioned URL containing the specimen, grammar, generation settings, environmental forces, seed, palette, branch styling, glow, terminal-bloom preference, and viewport composition. Once sharing is enabled, later valid edits keep that URL synchronized without reloading the page.
 
-Share data is stored in one URL-safe `art` query parameter and is limited to 8,192 encoded characters. Version-two links include viewport state, while version-one links remain supported with a fitted view. Malformed, oversized, invalid, or unsupported versions fall back to the default artwork instead of reaching the worker.
+Share data is stored in one URL-safe `art` query parameter and is limited to 8,192 encoded characters. Version-three links include wind and gravity. Version-two links retain their saved viewport and version-one links open fitted; both remain supported with neutral environmental forces. Malformed, oversized, invalid, or unsupported versions fall back to the default artwork instead of reaching the worker.
 
 ## Saving specimens
 

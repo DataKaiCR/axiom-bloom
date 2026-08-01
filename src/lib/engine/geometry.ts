@@ -9,6 +9,9 @@ import {
   type LSystemPreset,
 } from './types'
 
+const WIND_TROPISM = 0.018
+const GRAVITY_TROPISM = 0.014
+
 interface TurtleState {
   x: number
   y: number
@@ -17,7 +20,10 @@ interface TurtleState {
   segmentIndex: number
 }
 
-type InterpreterSettings = Pick<GenerationSettings, 'angle' | 'turnJitter' | 'seed'>
+type InterpreterSettings = Pick<
+  GenerationSettings,
+  'angle' | 'turnJitter' | 'wind' | 'gravity' | 'seed'
+>
 
 interface InterpreterContext {
   preset: LSystemPreset
@@ -94,11 +100,11 @@ function executeCommand(
   context: InterpreterContext,
 ): void {
   if (context.drawSymbols.has(command)) {
-    advanceTurtle(state, context.preset, true)
+    advanceTurtle(state, context, true)
     return
   }
   if (context.moveSymbols.has(command)) {
-    advanceTurtle(state, context.preset, false)
+    advanceTurtle(state, context, false)
     return
   }
 
@@ -132,11 +138,11 @@ function turnTurtle(
 
 function advanceTurtle(
   state: InterpreterState,
-  preset: LSystemPreset,
+  context: InterpreterContext,
   draw: boolean,
 ): void {
-  const nextX = state.x + Math.cos(state.heading) * preset.step
-  const nextY = state.y + Math.sin(state.heading) * preset.step
+  const nextX = state.x + Math.cos(state.heading) * context.preset.step
+  const nextY = state.y + Math.sin(state.heading) * context.preset.step
 
   if (draw) {
     state.segments.push(state.x, state.y, nextX, nextY, state.depth)
@@ -145,6 +151,16 @@ function advanceTurtle(
 
   state.x = nextX
   state.y = nextY
+  applyTropism(state, context.settings)
+}
+
+function applyTropism(
+  state: InterpreterState,
+  settings: InterpreterSettings,
+): void {
+  const windTurn = -Math.sin(state.heading) * settings.wind * WIND_TROPISM
+  const gravityTurn = Math.cos(state.heading) * settings.gravity * GRAVITY_TROPISM
+  state.heading += windTurn + gravityTurn
 }
 
 function updateBounds(bounds: Bounds, x: number, y: number): void {
