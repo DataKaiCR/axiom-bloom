@@ -21,7 +21,7 @@ Build a beautiful, fast, and approachable studio where people grow art from form
 - [x] Add pan, zoom, recenter, and viewport persistence
 - [x] Encode reproducible artwork settings in shareable URLs
 - [x] Add a preset browser with saved local specimens
-- [ ] Add pause, scrub, and growth-speed controls
+- [x] Add pause, scrub, and growth-speed controls
 
 ## Generative Art
 
