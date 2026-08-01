@@ -12,6 +12,7 @@ Axiom Bloom is an interactive generative-art studio for exploring Lindenmayer sy
 - Animated, depth-aware Canvas rendering with pan and zoom navigation
 - Editable axioms and production rules with inline validation
 - Versioned share links that restore complete, deterministic artworks
+- A local specimen library for named custom artwork snapshots
 - Live generation, angle, palette, taper, glow, and seed controls
 - Built-in botanical, dragon curve, and Sierpiński presets
 - PNG and consolidated SVG export
@@ -43,6 +44,7 @@ npm run test:e2e
 src/
 ├── lib/engine/       Pure grammar expansion, seeded RNG, turtle geometry, presets
 ├── lib/render/       Canvas renderer and SVG exporter
+├── lib/components/   Reusable studio controls and local specimen library
 ├── App.svelte        Interactive studio shell
 └── app.css           Visual system and responsive layout
 ```
@@ -66,6 +68,12 @@ The viewport is saved locally and restored on reload. PNG export captures the cu
 Use **Copy link** to create a versioned URL containing the specimen, grammar, generation settings, seed, palette, branch styling, glow, terminal-bloom preference, and viewport composition. Once sharing is enabled, later valid edits keep that URL synchronized without reloading the page.
 
 Share data is stored in one URL-safe `art` query parameter and is limited to 8,192 encoded characters. Version-two links include viewport state, while version-one links remain supported with a fitted view. Malformed, oversized, invalid, or unsupported versions fall back to the default artwork instead of reaching the worker.
+
+## Saving specimens
+
+Name the current artwork in **Local library** to save its complete grammar, appearance, seed, growth settings, and viewport in the browser. Up to 24 uniquely named specimens can be reopened or deleted with confirmation. Invalid or corrupted stored entries are skipped instead of being applied.
+
+Local specimens do not sync between browsers or devices and are removed when site storage is cleared. Use a share link for portable artwork.
 
 ## Legacy prototype
 

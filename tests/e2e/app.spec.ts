@@ -182,6 +182,59 @@ test('pans, zooms, recenters, and persists the viewport', async ({ page }) => {
   expect(pageErrors).toEqual([])
 })
 
+test('saves, opens, and deletes a local specimen', async ({ page }) => {
+  const pageErrors: string[] = []
+  page.on('pageerror', (error) => pageErrors.push(error.message))
+
+  await page.goto('/')
+  await expect(page.locator('.stage-metrics strong').first()).not.toHaveText('—')
+
+  await page.getByRole('slider', { name: 'Generations' }).fill('4')
+  await page.getByRole('textbox', { name: 'Seed' }).fill('library-moss')
+  await page.getByRole('textbox', { name: 'Axiom' }).fill('F')
+  await page.getByRole('textbox', { name: 'Rule 2 production' }).fill('F+F')
+  await page.getByRole('button', { name: 'Zoom in' }).click()
+  await expect(page.locator('.stage-metrics strong').nth(0)).toHaveText('16')
+
+  await page.getByRole('textbox', { name: 'Specimen name' }).fill('Moss Study')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(page.getByText('Moss Study was saved locally.')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Open saved specimen Moss Study' })).toBeVisible()
+
+  await page.getByRole('textbox', { name: 'Specimen name' }).fill('moss study')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(page.getByText('Choose a unique specimen name.')).toBeVisible()
+
+  await page.getByRole('button', { name: /Paper Dragon/ }).click()
+  await expect(page.getByRole('heading', { name: 'Paper Dragon', level: 1 })).toBeVisible()
+  await expect(page.getByLabel('Zoom level')).toHaveText('100%')
+
+  await page.getByRole('button', { name: 'Open saved specimen Moss Study' }).click()
+  await expect(page.getByText('Moss Study is now open.')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Verdant Bloom', level: 1 })).toBeVisible()
+  await expect(page.getByRole('slider', { name: 'Generations' })).toHaveValue('4')
+  await expect(page.getByRole('textbox', { name: 'Seed' })).toHaveValue('library-moss')
+  await expect(page.getByRole('textbox', { name: 'Axiom' })).toHaveValue('F')
+  await expect(page.getByRole('textbox', { name: 'Rule 2 production' })).toHaveValue('F+F')
+  await expect(page.getByLabel('Zoom level')).toHaveText('125%')
+  await expect(page.locator('.stage-metrics strong').nth(0)).toHaveText('16')
+
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Open saved specimen Moss Study' })).toBeVisible()
+
+  page.once('dialog', async (dialog) => {
+    expect(dialog.message()).toContain('Delete “Moss Study”')
+    await dialog.accept()
+  })
+  await page.getByRole('button', { name: 'Delete saved specimen Moss Study' }).click()
+  await expect(page.getByText('Moss Study was deleted.')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Open saved specimen Moss Study' })).toHaveCount(0)
+
+  await page.reload()
+  await expect(page.getByText('Saved artworks stay in this browser.')).toBeVisible()
+  expect(pageErrors).toEqual([])
+})
+
 test('falls back safely from a malformed artwork URL', async ({ page }) => {
   const pageErrors: string[] = []
   page.on('pageerror', (error) => pageErrors.push(error.message))
