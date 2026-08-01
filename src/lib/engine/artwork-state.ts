@@ -9,13 +9,15 @@ import { PRESETS } from './presets'
 import type { Palette } from './types'
 
 export const ARTWORK_QUERY_PARAMETER = 'art'
-export const ARTWORK_STATE_VERSION = 2
+export const ARTWORK_STATE_VERSION = 3
 export const MAX_ARTWORK_PAYLOAD_LENGTH = 8_192
 export const MAX_SEED_LENGTH = 128
 
 export const ARTWORK_LIMITS = {
   angle: { min: 0, max: 180 },
   turnJitter: { min: 0, max: 25 },
+  wind: { min: -1, max: 1 },
+  gravity: { min: 0, max: 1 },
   trunkWidth: { min: 0.8, max: 12 },
   taper: { min: 0.5, max: 1 },
   glow: { min: 0, max: 18 },
@@ -28,6 +30,8 @@ export interface ArtworkState {
   generations: number
   angle: number
   turnJitter: number
+  wind: number
+  gravity: number
   seed: string
   palette: Palette
   trunkWidth: number
@@ -62,10 +66,13 @@ interface ArtworkPayloadBase {
   b: 0 | 1
 }
 
-interface ArtworkPayloadV2 extends ArtworkPayloadBase {
-  v: 2
+interface ArtworkPayloadV3 extends ArtworkPayloadBase {
+  v: 3
   u: [number, number, number]
+  e: [number, number]
 }
+
+type EnvironmentalEffects = Pick<ArtworkState, 'wind' | 'gravity'>
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i
 const CONTROL_CHARACTER = /[\u0000-\u001f\u007f]/
@@ -76,7 +83,7 @@ export function encodeArtworkState(
   const normalized = normalizeArtworkState(state)
   if (!normalized) return { ok: false, reason: 'invalid-state' }
 
-  const payload: ArtworkPayloadV2 = {
+  const payload: ArtworkPayloadV3 = {
     v: ARTWORK_STATE_VERSION,
     p: normalized.presetId,
     a: normalized.axiom,
@@ -85,6 +92,7 @@ export function encodeArtworkState(
     d: normalized.angle,
     j: normalized.turnJitter,
     s: normalized.seed,
+    e: [normalized.wind, normalized.gravity],
     c: [
       normalized.palette.root,
       normalized.palette.crown,
@@ -130,11 +138,12 @@ export function decodeArtworkState(
   if (
     typeof parsed.v === 'number' &&
     parsed.v !== 1 &&
+    parsed.v !== 2 &&
     parsed.v !== ARTWORK_STATE_VERSION
   ) {
     return { ok: false, reason: 'unsupported-version' }
   }
-  if (parsed.v !== 1 && parsed.v !== ARTWORK_STATE_VERSION) {
+  if (parsed.v !== 1 && parsed.v !== 2 && parsed.v !== ARTWORK_STATE_VERSION) {
     return { ok: false, reason: 'malformed' }
   }
 
@@ -143,7 +152,12 @@ export function decodeArtworkState(
     : parseViewportPayload(parsed.u)
   if (!viewport) return { ok: false, reason: 'invalid-state' }
 
-  const state = parseArtworkPayload(parsed, viewport)
+  const effects = parsed.v === ARTWORK_STATE_VERSION
+    ? parseEffectsPayload(parsed.e)
+    : { wind: 0, gravity: 0 }
+  if (!effects) return { ok: false, reason: 'invalid-state' }
+
+  const state = parseArtworkPayload(parsed, viewport, effects)
   if (!state) return { ok: false, reason: 'invalid-state' }
 
   const normalized = normalizeArtworkState(state)
@@ -155,6 +169,7 @@ export function decodeArtworkState(
 function parseArtworkPayload(
   payload: Record<string, unknown>,
   viewport: ViewportState,
+  effects: EnvironmentalEffects,
 ): ArtworkState | null {
   const rules = parseRules(payload.r)
   const palette = parsePalette(payload.c)
@@ -183,6 +198,8 @@ function parseArtworkPayload(
     generations: payload.g,
     angle: payload.d,
     turnJitter: payload.j,
+    wind: effects.wind,
+    gravity: effects.gravity,
     seed: payload.s,
     palette,
     trunkWidth: payload.w,
@@ -205,6 +222,8 @@ function normalizeArtworkState(state: ArtworkState): ArtworkState | null {
     state.generations > preset.maxGenerations ||
     !inRange(state.angle, ARTWORK_LIMITS.angle) ||
     !inRange(state.turnJitter, ARTWORK_LIMITS.turnJitter) ||
+    !inRange(state.wind, ARTWORK_LIMITS.wind) ||
+    !inRange(state.gravity, ARTWORK_LIMITS.gravity) ||
     !inRange(state.trunkWidth, ARTWORK_LIMITS.trunkWidth) ||
     !inRange(state.taper, ARTWORK_LIMITS.taper) ||
     !inRange(state.glow, ARTWORK_LIMITS.glow) ||
@@ -232,6 +251,19 @@ function normalizeArtworkState(state: ArtworkState): ArtworkState | null {
     },
     viewport: compactViewport(state.viewport),
   }
+}
+
+function parseEffectsPayload(value: unknown): EnvironmentalEffects | null {
+  if (
+    !Array.isArray(value) ||
+    value.length !== 2 ||
+    typeof value[0] !== 'number' ||
+    typeof value[1] !== 'number'
+  ) {
+    return null
+  }
+
+  return { wind: value[0], gravity: value[1] }
 }
 
 function parseViewportPayload(value: unknown): ViewportState | null {

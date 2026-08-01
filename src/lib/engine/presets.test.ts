@@ -10,6 +10,8 @@ describe('built-in presets', () => {
         generations: preset.defaultGenerations,
         angle: preset.angle,
         turnJitter: preset.turnJitter,
+        wind: 0,
+        gravity: 0,
         seed: preset.seed,
         maxSymbols: 500_000,
       })

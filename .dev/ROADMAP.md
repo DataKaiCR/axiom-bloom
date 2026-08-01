@@ -25,7 +25,9 @@ Build a beautiful, fast, and approachable studio where people grow art from form
 
 ## Generative Art
 
-- [ ] Add wind, gravity, tropism, and seasonal effects
+- [x] Add deterministic wind and gravity effects
+- [ ] Add directional tropism and seasonal effects
+- [ ] Add a canonical system collection that exercises distinct engine capabilities
 - [ ] Add stochastic weighted productions with deterministic seeds
 - [ ] Add parametric symbols and age-aware branch styling
 - [ ] Add richer leaves, blossoms, particles, and palette systems

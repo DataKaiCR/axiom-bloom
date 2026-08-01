@@ -25,7 +25,7 @@ No waiver or project-local replacement rule was added. The accepted findings rem
 
 ## Follow-up
 
-The growth-playback implementation increased the corpus to 25 files. A follow-up scan covered all 25 without degraded or unavailable evidence and introduced no new findings; the five classifications above remain unchanged.
+Growth-playback increased the corpus to 25 files, and the later environmental-force work retained that count. The latest follow-up scan covered all 25 without degraded or unavailable evidence and introduced no new findings; the five classifications above remain unchanged.
 
 ## Regression evidence
 
