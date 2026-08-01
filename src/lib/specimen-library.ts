@@ -51,6 +51,17 @@ interface StoredSpecimen {
   a: string
 }
 
+type LibraryEnvelope =
+  | { ok: true; items: unknown[] }
+  | { ok: false; issue: 'malformed' | 'too-large' | 'unsupported-version' }
+
+interface LibraryParseState {
+  specimens: SavedSpecimen[]
+  ids: Set<string>
+  names: Set<string>
+  discarded: number
+}
+
 const SPECIMEN_ID = /^[A-Za-z0-9_-]{8,64}$/
 const CONTROL_CHARACTER = /[\u0000-\u001f\u007f]/
 
@@ -142,70 +153,86 @@ export function serializeSpecimenLibrary(
 export function parseSpecimenLibrary(
   value: string | null,
 ): SpecimenLibraryParseResult {
-  if (value === null) return { specimens: [], discarded: 0, issue: 'none' }
+  const envelope = parseLibraryEnvelope(value)
+  if (!envelope.ok) {
+    return { specimens: [], discarded: 0, issue: envelope.issue }
+  }
+
+  return parseLibraryItems(envelope.items)
+}
+
+function parseLibraryEnvelope(value: string | null): LibraryEnvelope {
+  if (value === null) return { ok: true, items: [] }
   if (value.length > MAX_SPECIMEN_LIBRARY_LENGTH) {
-    return { specimens: [], discarded: 0, issue: 'too-large' }
+    return { ok: false, issue: 'too-large' }
   }
 
   let parsed: unknown
   try {
     parsed = JSON.parse(value) as unknown
   } catch {
-    return { specimens: [], discarded: 0, issue: 'malformed' }
+    return { ok: false, issue: 'malformed' }
   }
-
-  if (!isRecord(parsed)) {
-    return { specimens: [], discarded: 0, issue: 'malformed' }
-  }
+  if (!isRecord(parsed)) return { ok: false, issue: 'malformed' }
   if (
     typeof parsed.v === 'number' &&
     parsed.v !== SPECIMEN_LIBRARY_VERSION
   ) {
-    return { specimens: [], discarded: 0, issue: 'unsupported-version' }
+    return { ok: false, issue: 'unsupported-version' }
   }
   if (parsed.v !== SPECIMEN_LIBRARY_VERSION || !Array.isArray(parsed.items)) {
-    return { specimens: [], discarded: 0, issue: 'malformed' }
+    return { ok: false, issue: 'malformed' }
   }
 
-  const specimens: SavedSpecimen[] = []
-  const ids = new Set<string>()
-  const names = new Set<string>()
-  let discarded = 0
+  return { ok: true, items: parsed.items }
+}
 
-  for (let index = 0; index < parsed.items.length; index += 1) {
-    if (specimens.length >= MAX_SAVED_SPECIMENS) {
-      discarded += parsed.items.length - index
+function parseLibraryItems(items: unknown[]): SpecimenLibraryParseResult {
+  const state: LibraryParseState = {
+    specimens: [],
+    ids: new Set(),
+    names: new Set(),
+    discarded: 0,
+  }
+
+  for (let index = 0; index < items.length; index += 1) {
+    if (state.specimens.length >= MAX_SAVED_SPECIMENS) {
+      state.discarded += items.length - index
       break
     }
 
-    const record = parseStoredSpecimen(parsed.items[index])
-    if (!record) {
-      discarded += 1
-      continue
+    if (!tryAppendLibraryItem(items[index], state)) {
+      state.discarded += 1
     }
-
-    const normalizedName = record.name.toLowerCase()
-    if (ids.has(record.id) || names.has(normalizedName)) {
-      discarded += 1
-      continue
-    }
-
-    const artwork = decodeArtworkState(record.payload)
-    if (!artwork.ok) {
-      discarded += 1
-      continue
-    }
-
-    ids.add(record.id)
-    names.add(normalizedName)
-    specimens.push({
-      ...record,
-      presetId: artwork.value.presetId,
-      generations: artwork.value.generations,
-    })
   }
 
-  return { specimens, discarded, issue: 'none' }
+  return {
+    specimens: state.specimens,
+    discarded: state.discarded,
+    issue: 'none',
+  }
+}
+
+function tryAppendLibraryItem(item: unknown, state: LibraryParseState): boolean {
+  const record = parseStoredSpecimen(item)
+  if (!record) return false
+
+  const normalizedName = record.name.toLowerCase()
+  if (state.ids.has(record.id) || state.names.has(normalizedName)) {
+    return false
+  }
+
+  const artwork = decodeArtworkState(record.payload)
+  if (!artwork.ok) return false
+
+  state.ids.add(record.id)
+  state.names.add(normalizedName)
+  state.specimens.push({
+    ...record,
+    presetId: artwork.value.presetId,
+    generations: artwork.value.generations,
+  })
+  return true
 }
 
 export function decodeSavedSpecimen(

@@ -43,6 +43,7 @@ describe('validateGrammar', () => {
       ruleIndex: 2,
       message: 'Use one letter or number.',
     })
+    expect(result.rules).toEqual({ F: 'FF' })
   })
 
   it('reports malformed branches before generation reaches the worker', () => {

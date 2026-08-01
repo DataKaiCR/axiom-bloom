@@ -10,6 +10,18 @@ export interface RenderStyle {
   showTips: boolean
 }
 
+interface CanvasSurface {
+  context: CanvasRenderingContext2D
+  width: number
+  height: number
+}
+
+interface ViewportTransform {
+  zoom: number
+  x: (value: number) => number
+  y: (value: number) => number
+}
+
 export function renderCanvas(
   canvas: HTMLCanvasElement,
   geometry: Geometry,
@@ -17,8 +29,31 @@ export function renderCanvas(
   viewportState: ViewportState,
   progress = 1,
 ): void {
+  const surface = prepareCanvas(canvas)
+  if (!surface) return
+
+  drawBackground(surface.context, surface.width, surface.height, style)
+  if (geometry.segmentCount === 0) return
+
+  const viewport = createViewport(
+    geometry,
+    surface.width,
+    surface.height,
+    viewportState,
+  )
+  const visibleSegments = Math.min(
+    geometry.segmentCount,
+    Math.ceil(geometry.segmentCount * clamp(progress, 0, 1)),
+  )
+  drawSegments(surface.context, geometry, style, viewport, visibleSegments)
+  if (style.showTips) {
+    drawTips(surface.context, geometry, style, viewport, visibleSegments)
+  }
+}
+
+function prepareCanvas(canvas: HTMLCanvasElement): CanvasSurface | null {
   const context = canvas.getContext('2d')
-  if (!context) return
+  if (!context) return null
 
   const rect = canvas.getBoundingClientRect()
   const width = Math.max(1, rect.width)
@@ -31,18 +66,18 @@ export function renderCanvas(
     canvas.width = pixelWidth
     canvas.height = pixelHeight
   }
-
   context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0)
-  drawBackground(context, width, height, style)
 
-  if (geometry.segmentCount === 0) return
+  return { context, width, height }
+}
 
-  const viewport = createViewport(geometry, width, height, viewportState)
-  const visibleSegments = Math.min(
-    geometry.segmentCount,
-    Math.ceil(geometry.segmentCount * clamp(progress, 0, 1)),
-  )
-
+function drawSegments(
+  context: CanvasRenderingContext2D,
+  geometry: Geometry,
+  style: RenderStyle,
+  viewport: ViewportTransform,
+  visibleSegments: number,
+): void {
   context.lineCap = 'round'
   context.lineJoin = 'round'
 
@@ -69,10 +104,6 @@ export function renderCanvas(
   }
 
   context.shadowBlur = 0
-
-  if (style.showTips) {
-    drawTips(context, geometry, style, viewport, visibleSegments)
-  }
 }
 
 function drawBackground(
@@ -113,7 +144,7 @@ function drawTips(
   context: CanvasRenderingContext2D,
   geometry: Geometry,
   style: RenderStyle,
-  viewport: ReturnType<typeof createViewport>,
+  viewport: ViewportTransform,
   visibleSegments: number,
 ): void {
   for (let offset = 0; offset < geometry.tips.length; offset += TIP_STRIDE) {
@@ -146,7 +177,7 @@ function createViewport(
   width: number,
   height: number,
   viewportState: ViewportState,
-) {
+): ViewportTransform {
   const { minX, minY, maxX, maxY } = geometry.bounds
   const contentWidth = Math.max(1, maxX - minX)
   const contentHeight = Math.max(1, maxY - minY)

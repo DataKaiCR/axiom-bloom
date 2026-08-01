@@ -42,6 +42,7 @@ Build a beautiful, fast, and approachable studio where people grow art from form
 
 - [ ] Publish a language-capability matrix from actual DKOS/dkkernel results
 - [x] Verify TypeScript and Svelte files never receive silent zero-coverage passes
+- [x] Run the parser-backed TypeScript/Svelte structural audit and classify every finding
 - [x] Exercise equivalent fixtures for Python, Go, Rust, and Zig
 - [ ] Record false positives, false negatives, degraded delegates, and unsupported files
 - [x] Validate that public visibility selects public onboarding and commit rules

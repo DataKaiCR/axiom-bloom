@@ -17,6 +17,28 @@ interface TurtleState {
   segmentIndex: number
 }
 
+type InterpreterSettings = Pick<GenerationSettings, 'angle' | 'turnJitter' | 'seed'>
+
+interface InterpreterContext {
+  preset: LSystemPreset
+  settings: InterpreterSettings
+  drawSymbols: Set<string>
+  moveSymbols: Set<string>
+  random: () => number
+}
+
+interface InterpreterState {
+  x: number
+  y: number
+  heading: number
+  depth: number
+  maxDepth: number
+  segments: number[]
+  tips: number[]
+  stack: TurtleState[]
+  bounds: Bounds
+}
+
 export function generateGeometry(
   preset: LSystemPreset,
   settings: GenerationSettings,
@@ -34,98 +56,153 @@ export function generateGeometry(
 export function interpretCommands(
   commands: string,
   preset: LSystemPreset,
-  settings: Pick<GenerationSettings, 'angle' | 'turnJitter' | 'seed'>,
+  settings: InterpreterSettings,
 ): Geometry {
-  const drawSymbols = new Set(preset.drawSymbols)
-  const moveSymbols = new Set(preset.moveSymbols ?? [])
-  const random = createRandom(settings.seed)
-  const segments: number[] = []
-  const tips: number[] = []
-  const stack: TurtleState[] = []
-  const bounds: Bounds = { minX: 0, minY: 0, maxX: 0, maxY: 0 }
-
-  let x = 0
-  let y = 0
-  let heading = degreesToRadians(preset.startAngle)
-  let depth = 0
-  let maxDepth = 0
-
-  const updateBounds = (nextX: number, nextY: number) => {
-    bounds.minX = Math.min(bounds.minX, nextX)
-    bounds.minY = Math.min(bounds.minY, nextY)
-    bounds.maxX = Math.max(bounds.maxX, nextX)
-    bounds.maxY = Math.max(bounds.maxY, nextY)
+  const context: InterpreterContext = {
+    preset,
+    settings,
+    drawSymbols: new Set(preset.drawSymbols),
+    moveSymbols: new Set(preset.moveSymbols ?? []),
+    random: createRandom(settings.seed),
   }
-
-  const advance = (draw: boolean) => {
-    const nextX = x + Math.cos(heading) * preset.step
-    const nextY = y + Math.sin(heading) * preset.step
-
-    if (draw) {
-      segments.push(x, y, nextX, nextY, depth)
-      updateBounds(nextX, nextY)
-    }
-
-    x = nextX
-    y = nextY
-  }
+  const state = createInterpreterState(preset.startAngle)
 
   for (const command of commands) {
-    if (drawSymbols.has(command)) {
-      advance(true)
-      continue
-    }
-
-    if (moveSymbols.has(command)) {
-      advance(false)
-      continue
-    }
-
-    if (command === '+') {
-      heading += turnAngle(settings.angle, settings.turnJitter, random())
-    } else if (command === '-') {
-      heading -= turnAngle(settings.angle, settings.turnJitter, random())
-    } else if (command === '[') {
-      stack.push({
-        x,
-        y,
-        heading,
-        depth,
-        segmentIndex: segments.length / SEGMENT_STRIDE,
-      })
-      depth += 1
-      maxDepth = Math.max(maxDepth, depth)
-    } else if (command === ']') {
-      const previous = stack.pop()
-
-      if (!previous) {
-        throw new SyntaxError('The L-system contains an unmatched closing bracket.')
-      }
-
-      const segmentIndex = segments.length / SEGMENT_STRIDE
-      if (segmentIndex > previous.segmentIndex) {
-        tips.push(x, y, depth, segmentIndex)
-      }
-
-      ;({ x, y, heading, depth } = previous)
-    }
+    executeCommand(command, state, context)
   }
 
-  if (stack.length > 0) {
+  return finishGeometry(commands.length, state)
+}
+
+function createInterpreterState(startAngle: number): InterpreterState {
+  return {
+    x: 0,
+    y: 0,
+    heading: degreesToRadians(startAngle),
+    depth: 0,
+    maxDepth: 0,
+    segments: [],
+    tips: [],
+    stack: [],
+    bounds: { minX: 0, minY: 0, maxX: 0, maxY: 0 },
+  }
+}
+
+function executeCommand(
+  command: string,
+  state: InterpreterState,
+  context: InterpreterContext,
+): void {
+  if (context.drawSymbols.has(command)) {
+    advanceTurtle(state, context.preset, true)
+    return
+  }
+  if (context.moveSymbols.has(command)) {
+    advanceTurtle(state, context.preset, false)
+    return
+  }
+
+  switch (command) {
+    case '+':
+      turnTurtle(state, context, 1)
+      break
+    case '-':
+      turnTurtle(state, context, -1)
+      break
+    case '[':
+      openBranch(state)
+      break
+    case ']':
+      closeBranch(state)
+      break
+  }
+}
+
+function turnTurtle(
+  state: InterpreterState,
+  context: InterpreterContext,
+  direction: -1 | 1,
+): void {
+  state.heading += direction * turnAngle(
+    context.settings.angle,
+    context.settings.turnJitter,
+    context.random(),
+  )
+}
+
+function advanceTurtle(
+  state: InterpreterState,
+  preset: LSystemPreset,
+  draw: boolean,
+): void {
+  const nextX = state.x + Math.cos(state.heading) * preset.step
+  const nextY = state.y + Math.sin(state.heading) * preset.step
+
+  if (draw) {
+    state.segments.push(state.x, state.y, nextX, nextY, state.depth)
+    updateBounds(state.bounds, nextX, nextY)
+  }
+
+  state.x = nextX
+  state.y = nextY
+}
+
+function updateBounds(bounds: Bounds, x: number, y: number): void {
+  bounds.minX = Math.min(bounds.minX, x)
+  bounds.minY = Math.min(bounds.minY, y)
+  bounds.maxX = Math.max(bounds.maxX, x)
+  bounds.maxY = Math.max(bounds.maxY, y)
+}
+
+function openBranch(state: InterpreterState): void {
+  state.stack.push({
+    x: state.x,
+    y: state.y,
+    heading: state.heading,
+    depth: state.depth,
+    segmentIndex: state.segments.length / SEGMENT_STRIDE,
+  })
+  state.depth += 1
+  state.maxDepth = Math.max(state.maxDepth, state.depth)
+}
+
+function closeBranch(state: InterpreterState): void {
+  const previous = state.stack.pop()
+  if (!previous) {
+    throw new SyntaxError('The L-system contains an unmatched closing bracket.')
+  }
+
+  const segmentIndex = state.segments.length / SEGMENT_STRIDE
+  if (segmentIndex > previous.segmentIndex) {
+    state.tips.push(state.x, state.y, state.depth, segmentIndex)
+  }
+
+  state.x = previous.x
+  state.y = previous.y
+  state.heading = previous.heading
+  state.depth = previous.depth
+}
+
+function finishGeometry(commandCount: number, state: InterpreterState): Geometry {
+  if (state.stack.length > 0) {
     throw new SyntaxError('The L-system contains an unmatched opening bracket.')
   }
-
-  if (segments.length > 0) {
-    tips.push(x, y, depth, segments.length / SEGMENT_STRIDE)
+  if (state.segments.length > 0) {
+    state.tips.push(
+      state.x,
+      state.y,
+      state.depth,
+      state.segments.length / SEGMENT_STRIDE,
+    )
   }
 
   return {
-    segments: new Float32Array(segments),
-    tips: new Float32Array(tips),
-    bounds,
-    maxDepth,
-    commandCount: commands.length,
-    segmentCount: segments.length / SEGMENT_STRIDE,
+    segments: new Float32Array(state.segments),
+    tips: new Float32Array(state.tips),
+    bounds: state.bounds,
+    maxDepth: state.maxDepth,
+    commandCount,
+    segmentCount: state.segments.length / SEGMENT_STRIDE,
   }
 }
 
