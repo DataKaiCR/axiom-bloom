@@ -11,6 +11,7 @@ Axiom Bloom is an interactive generative-art studio for exploring Lindenmayer sy
 - Web Worker generation with a 500,000-symbol safety limit
 - Animated, depth-aware Canvas rendering
 - Editable axioms and production rules with inline validation
+- Versioned share links that restore complete, deterministic artworks
 - Live generation, angle, palette, taper, glow, and seed controls
 - Built-in botanical, dragon curve, and Sierpiński presets
 - PNG and consolidated SVG export
@@ -53,6 +54,12 @@ The engine is independent of Svelte and Canvas. Generation runs behind a worker 
 Choose a specimen, then edit its axiom and production rows in the Grammar panel. Production symbols use one letter or number; branch brackets must balance within the axiom and each production. An empty production deletes its symbol. Invalid drafts are highlighted immediately and never reach the worker, so the canvas keeps the last valid artwork until the grammar is repaired or reset.
 
 The selected specimen still defines which symbols draw or move the turtle, along with its step size and starting angle. This makes it possible to experiment with rewriting rules without losing the specimen's visual interpretation.
+
+## Sharing artwork
+
+Use **Copy link** to create a versioned URL containing the specimen, grammar, generation settings, seed, palette, branch styling, glow, and terminal-bloom preference. Once sharing is enabled, later valid edits keep that URL synchronized without reloading the page.
+
+Share data is stored in one URL-safe `art` query parameter and is limited to 8,192 encoded characters. Malformed, oversized, invalid, or unsupported versions fall back to the default artwork instead of reaching the worker.
 
 ## Legacy prototype
 

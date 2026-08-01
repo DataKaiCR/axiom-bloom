@@ -19,7 +19,7 @@ Build a beautiful, fast, and approachable studio where people grow art from form
 
 - [x] Add editable axioms and production rules with inline validation
 - [ ] Add pan, zoom, recenter, and viewport persistence
-- [ ] Encode reproducible artwork settings in shareable URLs
+- [x] Encode reproducible artwork settings in shareable URLs
 - [ ] Add a preset browser with saved local specimens
 - [ ] Add pause, scrub, and growth-speed controls
 
