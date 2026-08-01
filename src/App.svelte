@@ -21,6 +21,7 @@
     Geometry,
     LSystemPreset,
   } from './lib/engine/types'
+  import SpecimenLibrary from './lib/components/SpecimenLibrary.svelte'
   import { renderCanvas, type RenderStyle } from './lib/render/canvas'
   import { createSvg, downloadSvg } from './lib/render/svg'
   import {
@@ -823,6 +824,12 @@
           {/each}
         </div>
       </section>
+
+      <SpecimenLibrary
+        artwork={createArtworkState()}
+        grammarValid={grammarValidation.valid}
+        onOpen={applyArtworkState}
+      />
 
       <section class="control-section">
         <div class="section-heading"><span>Growth</span><small>Live</small></div>
