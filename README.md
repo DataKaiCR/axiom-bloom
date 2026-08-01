@@ -71,7 +71,7 @@ Playback progress and speed affect only the presentation; they do not change the
 
 ## Shaping the environment
 
-Use **Wind** to bend forward growth left or right and **Gravity** to pull lateral branches downward. Both forces adjust the turtle heading after each forward step, preserving connected branches while producing a different deterministic geometry. Choosing another built-in specimen resets the environment to calm conditions.
+Use **Wind** to bend forward growth left or right and **Gravity** to pull lateral branches downward. Gravity responds more strongly along nested outer branches, creating visible crown and branch droop without tipping an upright trunk. Both forces adjust the turtle heading after each forward step, preserving connected branches while producing a different deterministic geometry. Choosing another built-in specimen resets the environment to calm conditions.
 
 Environmental forces are generated inside the worker and are preserved in share links, local specimens, PNG exports, and SVG exports.
 

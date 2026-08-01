@@ -91,6 +91,6 @@ describe('environmental forces', () => {
       gravity: 1,
     })
 
-    expect(geometry.segments[18]).toBeGreaterThan(0.5)
+    expect(geometry.segments[18]).toBeGreaterThan(1.5)
   })
 })
