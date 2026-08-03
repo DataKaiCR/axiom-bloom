@@ -1,5 +1,13 @@
-import { SEGMENT_STRIDE, TIP_STRIDE, type Geometry, type Palette } from '../engine/types'
+import {
+  DEFAULT_SEASON,
+  SEGMENT_STRIDE,
+  TIP_STRIDE,
+  type Geometry,
+  type Palette,
+  type Season,
+} from '../engine/types'
 import { constrainViewport, type ViewportState } from '../viewport'
+import { getSeasonalTipShape, resolveSeasonPalette, type SeasonalTipShape } from './season'
 
 export interface RenderStyle {
   palette: Palette
@@ -8,12 +16,18 @@ export interface RenderStyle {
   taper: number
   glow: number
   showTips: boolean
+  season: Season
 }
 
 interface CanvasSurface {
   context: CanvasRenderingContext2D
   width: number
   height: number
+}
+
+interface CanvasPoint {
+  x: number
+  y: number
 }
 
 interface ViewportTransform {
@@ -32,7 +46,11 @@ export function renderCanvas(
   const surface = prepareCanvas(canvas)
   if (!surface) return
 
-  drawBackground(surface.context, surface.width, surface.height, style)
+  const seasonalStyle = {
+    ...style,
+    palette: resolveSeasonPalette(style.palette, style.season),
+  }
+  drawBackground(surface.context, surface.width, surface.height, seasonalStyle)
   if (geometry.segmentCount === 0) return
 
   const viewport = createViewport(
@@ -45,9 +63,15 @@ export function renderCanvas(
     geometry.segmentCount,
     Math.ceil(geometry.segmentCount * clamp(progress, 0, 1)),
   )
-  drawSegments(surface.context, geometry, style, viewport, visibleSegments)
-  if (style.showTips) {
-    drawTips(surface.context, geometry, style, viewport, visibleSegments)
+  drawSegments(surface.context, geometry, seasonalStyle, viewport, visibleSegments)
+  if (seasonalStyle.showTips) {
+    drawTips(
+      surface.context,
+      geometry,
+      seasonalStyle,
+      viewport,
+      visibleSegments,
+    )
   }
 }
 
@@ -129,7 +153,9 @@ function drawBackground(
   context.fillStyle = ambient
   context.fillRect(0, 0, width, height)
 
-  context.fillStyle = 'rgba(220, 255, 239, 0.18)'
+  context.fillStyle = style.season === DEFAULT_SEASON
+    ? 'rgba(220, 255, 239, 0.18)'
+    : withAlpha(style.palette.accent, 0.18)
   for (let index = 0; index < 42; index += 1) {
     const x = ((index * 73.17) % 101) * (width / 100)
     const y = ((index * index * 19.31 + 7) % 103) * (height / 102)
@@ -147,6 +173,8 @@ function drawTips(
   viewport: ViewportTransform,
   visibleSegments: number,
 ): void {
+  const shape = getSeasonalTipShape(style.season)
+
   for (let offset = 0; offset < geometry.tips.length; offset += TIP_STRIDE) {
     const segmentIndex = geometry.tips[offset + 3]
     if (segmentIndex > visibleSegments) continue
@@ -159,16 +187,87 @@ function drawTips(
     const x = viewport.x(geometry.tips[offset])
     const y = viewport.y(geometry.tips[offset + 1])
 
+    drawSeasonalTip(context, { x, y }, radius, style, shape)
+  }
+}
+
+function drawSeasonalTip(
+  context: CanvasRenderingContext2D,
+  point: CanvasPoint,
+  radius: number,
+  style: RenderStyle,
+  shape: SeasonalTipShape,
+): void {
+  context.save()
+  context.translate(point.x, point.y)
+  context.fillStyle = style.palette.accent
+  context.strokeStyle = style.palette.accent
+  context.shadowColor = style.palette.accent
+  context.shadowBlur = style.glow + 5
+
+  switch (shape) {
+    case 'blossom':
+      drawBlossom(context, radius)
+      break
+    case 'leaf':
+      drawLeaf(context, radius)
+      break
+    case 'falling-leaf':
+      drawFallingLeaf(context, radius)
+      break
+    case 'frost':
+      drawFrost(context, radius)
+      break
+  }
+
+  context.restore()
+}
+
+function drawBlossom(context: CanvasRenderingContext2D, radius: number): void {
+  for (let index = 0; index < 4; index += 1) {
     context.save()
-    context.translate(x, y)
-    context.rotate(Math.PI / 4)
-    context.fillStyle = style.palette.accent
-    context.shadowColor = style.palette.accent
-    context.shadowBlur = style.glow + 5
+    context.rotate(index * Math.PI / 2)
     context.beginPath()
-    context.roundRect(-radius, -radius, radius * 2, radius * 2, radius * 0.7)
+    context.ellipse(
+      0,
+      -radius * 0.58,
+      radius * 0.48,
+      radius * 0.74,
+      0,
+      0,
+      Math.PI * 2,
+    )
     context.fill()
     context.restore()
+  }
+}
+
+function drawLeaf(context: CanvasRenderingContext2D, radius: number): void {
+  context.rotate(Math.PI / 4)
+  context.beginPath()
+  context.roundRect(-radius, -radius, radius * 2, radius * 2, radius * 0.7)
+  context.fill()
+}
+
+function drawFallingLeaf(
+  context: CanvasRenderingContext2D,
+  radius: number,
+): void {
+  context.rotate(Math.PI / 4)
+  context.beginPath()
+  context.ellipse(0, 0, radius * 0.68, radius * 1.18, 0, 0, Math.PI * 2)
+  context.fill()
+}
+
+function drawFrost(context: CanvasRenderingContext2D, radius: number): void {
+  context.lineWidth = Math.max(0.8, radius * 0.24)
+  context.lineCap = 'round'
+  for (let index = 0; index < 3; index += 1) {
+    context.rotate(Math.PI / 3)
+    context.beginPath()
+    context.moveTo(-radius, 0)
+    context.lineTo(radius, 0)
+    context.stroke()
   }
 }
 

@@ -25,11 +25,11 @@ No waiver or project-local replacement rule was added. The accepted findings rem
 
 ## Follow-up
 
-Growth-playback increased the corpus to 25 files, and the later environmental-force work retained that count. The latest follow-up scan covered all 25 without degraded or unavailable evidence and introduced no new findings; the five classifications above remain unchanged.
+Growth-playback increased the corpus to 25 files, and directional tropism plus seasonal rendering increased it to 27. The latest follow-up scan covered all 27 without degraded or unavailable evidence and introduced no new findings; the five classifications above remain unchanged.
 
 ## Regression evidence
 
-Existing geometry, grammar, specimen-library, and browser tests protect the refactored behavior. SVG export now also has direct unit coverage for grouped paths, tip visibility, finite coordinates, and escaped metadata.
+Geometry, grammar, specimen-library, seasonal-rendering, and browser tests protect the refactored behavior. SVG export has direct unit coverage for grouped paths, season-specific terminal marks, tip visibility, finite coordinates, and escaped metadata.
 
 The authoritative project gates are:
 

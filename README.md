@@ -13,7 +13,7 @@ Axiom Bloom is an interactive generative-art studio for exploring Lindenmayer sy
 - Editable axioms and production rules with inline validation
 - Versioned share links that restore complete, deterministic artworks
 - A local specimen library for named custom artwork snapshots
-- Live generation, wind, gravity, angle, palette, taper, glow, and seed controls
+- Live generation, wind, gravity, directional sunlight, seasons, palette, and styling controls
 - Built-in botanical, dragon curve, and Sierpiński presets
 - PNG and consolidated SVG export
 - Responsive and reduced-motion-aware interface
@@ -71,15 +71,17 @@ Playback progress and speed affect only the presentation; they do not change the
 
 ## Shaping the environment
 
-Use **Wind** to bend forward growth left or right and **Gravity** to pull lateral branches downward. Gravity responds more strongly along nested outer branches, creating visible crown and branch droop without tipping an upright trunk. Both forces adjust the turtle heading after each forward step, preserving connected branches while producing a different deterministic geometry. Choosing another built-in specimen resets the environment to calm conditions.
+Use **Wind** to bend forward growth left or right and **Gravity** to pull lateral branches downward. Gravity responds more strongly along nested outer branches, creating visible crown and branch droop without tipping an upright trunk. **Sun pull** adds directional tropism: set a light direction, then increase its strength to steer each new segment toward that bearing. Zero degrees points up, positive angles turn clockwise, and negative angles turn counterclockwise.
 
-Environmental forces are generated inside the worker and are preserved in share links, local specimens, PNG exports, and SVG exports.
+Choose **Spring**, **Summer**, **Autumn**, or **Winter** to apply a deterministic seasonal palette treatment and a matching terminal mark: blossoms, leaves, falling leaves, or frost. Summer is the neutral treatment and preserves the selected surface colors exactly. Choosing another built-in specimen resets the environment to calm summer conditions.
+
+Geometry forces run inside the worker, while seasonal styling is shared by the Canvas and SVG renderers. All environment settings are preserved in share links, local specimens, PNG exports, and SVG exports.
 
 ## Sharing artwork
 
-Use **Copy link** to create a versioned URL containing the specimen, grammar, generation settings, environmental forces, seed, palette, branch styling, glow, terminal-bloom preference, and viewport composition. Once sharing is enabled, later valid edits keep that URL synchronized without reloading the page.
+Use **Copy link** to create a versioned URL containing the specimen, grammar, generation settings, environmental forces, season, seed, palette, branch styling, glow, terminal-bloom preference, and viewport composition. Once sharing is enabled, later valid edits keep that URL synchronized without reloading the page.
 
-Share data is stored in one URL-safe `art` query parameter and is limited to 8,192 encoded characters. Version-three links include wind and gravity. Version-two links retain their saved viewport and version-one links open fitted; both remain supported with neutral environmental forces. Malformed, oversized, invalid, or unsupported versions fall back to the default artwork instead of reaching the worker.
+Share data is stored in one URL-safe `art` query parameter and is limited to 8,192 encoded characters. Version-four links include wind, gravity, directional tropism, and season. Version-three links retain wind and gravity with neutral sunlight and summer styling. Version-two links retain their saved viewport and version-one links open fitted; both remain supported with a neutral summer environment. Malformed, oversized, invalid, or unsupported versions fall back to the default artwork instead of reaching the worker.
 
 ## Saving specimens
 

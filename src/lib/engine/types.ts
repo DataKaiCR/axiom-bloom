@@ -1,5 +1,10 @@
 export const SEGMENT_STRIDE = 5
 export const TIP_STRIDE = 4
+export const SEASONS = ['spring', 'summer', 'autumn', 'winter'] as const
+
+export type Season = (typeof SEASONS)[number]
+
+export const DEFAULT_SEASON: Season = 'summer'
 
 export interface Palette {
   root: string
@@ -40,6 +45,8 @@ export interface GenerationSettings {
   turnJitter: number
   wind: number
   gravity: number
+  tropism: number
+  tropismAngle: number
   seed: string
   maxSymbols: number
 }

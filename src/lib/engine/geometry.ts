@@ -12,6 +12,7 @@ import {
 const WIND_TROPISM = 0.018
 const GRAVITY_TROPISM = 0.035
 const GRAVITY_DEPTH_RESPONSE = 0.12
+const DIRECTIONAL_TROPISM = 0.03
 
 interface TurtleState {
   x: number
@@ -23,7 +24,13 @@ interface TurtleState {
 
 type InterpreterSettings = Pick<
   GenerationSettings,
-  'angle' | 'turnJitter' | 'wind' | 'gravity' | 'seed'
+  | 'angle'
+  | 'turnJitter'
+  | 'wind'
+  | 'gravity'
+  | 'tropism'
+  | 'tropismAngle'
+  | 'seed'
 >
 
 interface InterpreterContext {
@@ -164,7 +171,10 @@ function applyTropism(
     1 + state.depth * GRAVITY_DEPTH_RESPONSE
   )
   const gravityTurn = Math.cos(state.heading) * settings.gravity * gravityResponse
-  state.heading += windTurn + gravityTurn
+  const targetHeading = degreesToRadians(settings.tropismAngle - 90)
+  const directionalTurn = Math.sin(targetHeading - state.heading) *
+    settings.tropism * DIRECTIONAL_TROPISM
+  state.heading += windTurn + gravityTurn + directionalTurn
 }
 
 function updateBounds(bounds: Bounds, x: number, y: number): void {

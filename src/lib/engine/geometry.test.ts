@@ -32,6 +32,8 @@ const settings: GenerationSettings = {
   turnJitter: 0,
   wind: 0,
   gravity: 0,
+  tropism: 0,
+  tropismAngle: 0,
   seed: 'repeatable',
   maxSymbols: 10_000,
 }
@@ -62,7 +64,14 @@ describe('interpretCommands', () => {
   })
 
   it('produces repeatable geometry for a seed', () => {
-    const varied = { ...settings, turnJitter: 20, wind: 0.4, gravity: 0.5 }
+    const varied = {
+      ...settings,
+      turnJitter: 20,
+      wind: 0.4,
+      gravity: 0.5,
+      tropism: 0.6,
+      tropismAngle: -45,
+    }
     const first = interpretCommands('F+F-F+F', preset, varied)
     const second = interpretCommands('F+F-F+F', preset, varied)
 
@@ -92,5 +101,29 @@ describe('environmental forces', () => {
     })
 
     expect(geometry.segments[18]).toBeGreaterThan(1.5)
+  })
+
+  it('bends growth toward a directional light source', () => {
+    const right = interpretCommands('FFFF', preset, {
+      ...settings,
+      tropism: 1,
+      tropismAngle: 90,
+    })
+    const left = interpretCommands('FFFF', preset, {
+      ...settings,
+      tropism: 1,
+      tropismAngle: -90,
+    })
+
+    expect(right.segments[17]).toBeGreaterThan(1)
+    expect(left.segments[17]).toBeLessThan(-1)
+  })
+
+  it('restores tropism-adjusted heading after a branch', () => {
+    const sunward = { ...settings, tropism: 1, tropismAngle: 90 }
+    const branched = interpretCommands('F[+FF]F', preset, sunward)
+    const trunk = interpretCommands('FF', preset, sunward)
+
+    expect(branched.segments.slice(15, 19)).toEqual(trunk.segments.slice(5, 9))
   })
 })

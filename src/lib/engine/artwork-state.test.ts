@@ -20,6 +20,9 @@ const artwork: ArtworkState = {
   turnJitter: 4.5,
   wind: 0.35,
   gravity: 0.4,
+  tropism: 0.65,
+  tropismAngle: -70,
+  season: 'autumn',
   seed: 'moss-🌿',
   palette: { root: '#112233', crown: '#44AA66', accent: '#ffe080' },
   trunkWidth: 4.2,
@@ -60,6 +63,9 @@ describe('artwork state URLs', () => {
         palette: { root: '#112233', crown: '#44aa66', accent: '#ffe080' },
         wind: 0,
         gravity: 0,
+        tropism: 0,
+        tropismAngle: 0,
+        season: 'summer',
         viewport: createDefaultViewport(),
       },
     })
@@ -77,6 +83,26 @@ describe('artwork state URLs', () => {
         palette: { root: '#112233', crown: '#44aa66', accent: '#ffe080' },
         wind: 0,
         gravity: 0,
+        tropism: 0,
+        tropismAngle: 0,
+        season: 'summer',
+      },
+    })
+  })
+
+  it('restores version-three links with their wind and gravity', () => {
+    const legacyPayload = toPayload(artwork)
+    legacyPayload.v = 3
+    legacyPayload.e = [artwork.wind, artwork.gravity]
+
+    expect(decodeArtworkState(encodeRaw(legacyPayload))).toEqual({
+      ok: true,
+      value: {
+        ...artwork,
+        palette: { root: '#112233', crown: '#44aa66', accent: '#ffe080' },
+        tropism: 0,
+        tropismAngle: 0,
+        season: 'summer',
       },
     })
   })
@@ -97,9 +123,6 @@ describe('artwork state URLs', () => {
   })
 
   it('rejects unknown presets, unsafe settings, and invalid grammars', () => {
-    const encodedArtwork = encodeArtworkState(artwork)
-    expect(encodedArtwork.ok).toBe(true)
-
     expect(
       decodeArtworkState(
         encodeRaw({ ...toPayload(artwork), p: 'missing-preset' }),
@@ -116,18 +139,28 @@ describe('artwork state URLs', () => {
       ),
     ).toEqual({ ok: false, reason: 'invalid-state' })
     expect(
-      decodeArtworkState(
-        encodeRaw({ ...toPayload(artwork), e: [2, 0] }),
-      ),
-    ).toEqual({ ok: false, reason: 'invalid-state' })
-    expect(
-      decodeArtworkState(
-        encodeRaw({ ...toPayload(artwork), e: ['wind', 0] }),
-      ),
-    ).toEqual({ ok: false, reason: 'invalid-state' })
-    expect(
       encodeArtworkState({ ...artwork, rules: [{ symbol: 'F', replacement: 'F[' }] }),
     ).toEqual({ ok: false, reason: 'invalid-state' })
+  })
+
+  it('rejects malformed and out-of-range environmental effects', () => {
+    expectInvalidEffects([
+      2,
+      0,
+      artwork.tropism,
+      artwork.tropismAngle,
+      artwork.season,
+    ])
+    expectInvalidEffects([
+      'wind',
+      0,
+      artwork.tropism,
+      artwork.tropismAngle,
+      artwork.season,
+    ])
+    expectInvalidEffects([0, 0, 0.5, 0, 'monsoon'])
+    expectInvalidEffects([0, 0, 1.05, 0, 'summer'])
+    expectInvalidEffects([0, 0, 0.5, 185, 'summer'])
   })
 
   it('enforces the encoded payload size limit', () => {
@@ -149,6 +182,14 @@ describe('artwork state URLs', () => {
   })
 })
 
+function expectInvalidEffects(effects: unknown[]): void {
+  expect(
+    decodeArtworkState(
+      encodeRaw({ ...toPayload(artwork), e: effects }),
+    ),
+  ).toEqual({ ok: false, reason: 'invalid-state' })
+}
+
 function toPayload(state: ArtworkState): Record<string, unknown> {
   return {
     v: ARTWORK_STATE_VERSION,
@@ -159,7 +200,13 @@ function toPayload(state: ArtworkState): Record<string, unknown> {
     d: state.angle,
     j: state.turnJitter,
     s: state.seed,
-    e: [state.wind, state.gravity],
+    e: [
+      state.wind,
+      state.gravity,
+      state.tropism,
+      state.tropismAngle,
+      state.season,
+    ],
     c: [state.palette.root, state.palette.crown, state.palette.accent],
     w: state.trunkWidth,
     t: state.taper,

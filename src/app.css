@@ -1074,6 +1074,64 @@ button:disabled {
   margin-top: 14px;
 }
 
+.season-control {
+  min-width: 0;
+  margin: 19px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.season-control legend {
+  margin-bottom: 9px;
+  padding: 0;
+  color: var(--soft);
+  font-size: 9px;
+  font-weight: 550;
+}
+
+.season-control > div {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+}
+
+.season-control label {
+  position: relative;
+  min-width: 0;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  color: #71867c;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.018);
+  font-family: 'DM Mono', monospace;
+  font-size: 7px;
+  cursor: pointer;
+  transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.season-control label:hover {
+  color: #b8d1c5;
+  border-color: rgba(124, 247, 180, 0.25);
+}
+
+.season-control label.active {
+  color: var(--green);
+  border-color: rgba(124, 247, 180, 0.4);
+  background: rgba(124, 247, 180, 0.08);
+}
+
+.season-control input {
+  position: absolute;
+  opacity: 0;
+}
+
+.season-control label:has(input:focus-visible) {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
+
 .seed-control {
   display: block;
   margin-top: 18px;

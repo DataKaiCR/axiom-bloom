@@ -24,10 +24,13 @@
     normalizeGrowthSpeed,
   } from './lib/growth-animation'
   import { PRESETS, getPreset } from './lib/engine/presets'
-  import type {
-    GenerationResponse,
-    Geometry,
-    LSystemPreset,
+  import {
+    DEFAULT_SEASON,
+    SEASONS,
+    type GenerationResponse,
+    type Geometry,
+    type LSystemPreset,
+    type Season,
   } from './lib/engine/types'
   import SpecimenLibrary from './lib/components/SpecimenLibrary.svelte'
   import { renderCanvas, type RenderStyle } from './lib/render/canvas'
@@ -88,6 +91,9 @@
   let jitter = $state(initialPreset.turnJitter)
   let wind = $state(0)
   let gravity = $state(0)
+  let tropism = $state(0)
+  let tropismAngle = $state(0)
+  let season = $state<Season>(DEFAULT_SEASON)
   let seed = $state(initialPreset.seed)
   let rootColor = $state(initialPreset.appearance.palette.root)
   let crownColor = $state(initialPreset.appearance.palette.crown)
@@ -150,6 +156,7 @@
     taper,
     glow,
     showTips,
+    season,
   })
 
   $effect(() => {
@@ -171,6 +178,8 @@
         turnJitter: jitter,
         wind,
         gravity,
+        tropism,
+        tropismAngle,
         seed,
         maxSymbols: 500_000,
       },
@@ -299,6 +308,9 @@
     jitter = next.turnJitter
     wind = 0
     gravity = 0
+    tropism = 0
+    tropismAngle = 0
+    season = DEFAULT_SEASON
     seed = next.seed
     rootColor = next.appearance.palette.root
     crownColor = next.appearance.palette.crown
@@ -364,6 +376,9 @@
     jitter = state.turnJitter
     wind = state.wind
     gravity = state.gravity
+    tropism = state.tropism
+    tropismAngle = state.tropismAngle
+    season = state.season
     seed = state.seed
     rootColor = state.palette.root
     crownColor = state.palette.crown
@@ -390,6 +405,9 @@
       turnJitter: jitter,
       wind,
       gravity,
+      tropism,
+      tropismAngle,
+      season,
       seed,
       palette: { root: rootColor, crown: crownColor, accent: accentColor },
       trunkWidth,
@@ -724,6 +742,16 @@
     return `${Math.round(Math.abs(value) * 100)}% ${value < 0 ? '←' : '→'}`
   }
 
+  function formatTropismDirection(value: number): string {
+    const arrows = ['↑', '↗', '→', '↘', '↓', '↙', '←', '↖']
+    const arrowIndex = (Math.round(value / 45) + arrows.length) % arrows.length
+    return `${Math.round(value)}° ${arrows[arrowIndex]}`
+  }
+
+  function formatSeason(value: Season): string {
+    return value[0].toUpperCase() + value.slice(1)
+  }
+
   function formatNumber(value: number): string {
     return new Intl.NumberFormat('en-US').format(value)
   }
@@ -1014,7 +1042,7 @@
       </section>
 
       <section class="control-section">
-        <div class="section-heading"><span>Environment</span><small>Bend + droop</small></div>
+        <div class="section-heading"><span>Environment</span><small>Climate + light</small></div>
 
         <label class="range-control">
           <span><b>Wind</b><output>{formatWind(wind)}</output></span>
@@ -1039,6 +1067,42 @@
             aria-label="Gravity"
           />
         </label>
+
+        <label class="range-control">
+          <span><b>Sun pull</b><output>{Math.round(tropism * 100)}%</output></span>
+          <input
+            type="range"
+            min={ARTWORK_LIMITS.tropism.min}
+            max={ARTWORK_LIMITS.tropism.max}
+            step="0.05"
+            bind:value={tropism}
+            aria-label="Sun pull"
+          />
+        </label>
+
+        <label class="range-control">
+          <span><b>Light direction</b><output>{formatTropismDirection(tropismAngle)}</output></span>
+          <input
+            type="range"
+            min={ARTWORK_LIMITS.tropismAngle.min}
+            max={ARTWORK_LIMITS.tropismAngle.max}
+            step="5"
+            bind:value={tropismAngle}
+            aria-label="Light direction"
+          />
+        </label>
+
+        <fieldset class="season-control">
+          <legend>Season</legend>
+          <div>
+            {#each SEASONS as option}
+              <label class:active={season === option}>
+                <input type="radio" name="season" value={option} bind:group={season} />
+                <span>{formatSeason(option)}</span>
+              </label>
+            {/each}
+          </div>
+        </fieldset>
       </section>
 
       <section class="control-section">
