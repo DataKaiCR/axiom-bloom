@@ -12,6 +12,8 @@ describe('built-in presets', () => {
         turnJitter: preset.turnJitter,
         wind: 0,
         gravity: 0,
+        tropism: 0,
+        tropismAngle: 0,
         seed: preset.seed,
         maxSymbols: 500_000,
       })

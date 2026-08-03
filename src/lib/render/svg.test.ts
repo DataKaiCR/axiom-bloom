@@ -22,6 +22,7 @@ const style: RenderStyle = {
   taper: 0.8,
   glow: 4,
   showTips: true,
+  season: 'summer',
 }
 
 describe('createSvg', () => {
@@ -30,13 +31,29 @@ describe('createSvg', () => {
 
     expect(svg).toContain('<title>Tree &lt;Study&gt; &amp; Notes</title>')
     expect(svg.match(/<path /g)).toHaveLength(2)
-    expect(svg).toContain('<circle cx="20" cy="-5"')
+    expect(svg).toContain('<circle data-tip="leaf" cx="20" cy="-5"')
     expect(svg).not.toContain('NaN')
+  })
+
+  it('exports the selected seasonal palette and terminal shape', () => {
+    const svg = createSvg(geometry, { ...style, season: 'autumn' }, 'Tree')
+
+    expect(svg).toContain('data-season="autumn"')
+    expect(svg).toContain('<ellipse data-tip="falling-leaf" cx="20" cy="-5"')
+    expect(svg).not.toContain('stroke="rgb(68, 170, 102)"')
+  })
+
+  it('exports blossom and frost terminal marks', () => {
+    const spring = createSvg(geometry, { ...style, season: 'spring' }, 'Tree')
+    const winter = createSvg(geometry, { ...style, season: 'winter' }, 'Tree')
+
+    expect(spring).toContain('data-tip="blossom"')
+    expect(winter).toContain('data-tip="frost"')
   })
 
   it('omits tip markup when tips are hidden', () => {
     const svg = createSvg(geometry, { ...style, showTips: false }, 'Tree')
 
-    expect(svg).not.toContain('<circle')
+    expect(svg).not.toContain('data-tip=')
   })
 })

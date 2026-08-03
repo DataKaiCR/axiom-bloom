@@ -6,10 +6,15 @@ import {
 } from '../viewport'
 import { validateGrammar, type ProductionRuleDraft } from './grammar'
 import { PRESETS } from './presets'
-import type { Palette } from './types'
+import {
+  DEFAULT_SEASON,
+  SEASONS,
+  type Palette,
+  type Season,
+} from './types'
 
 export const ARTWORK_QUERY_PARAMETER = 'art'
-export const ARTWORK_STATE_VERSION = 3
+export const ARTWORK_STATE_VERSION = 4
 export const MAX_ARTWORK_PAYLOAD_LENGTH = 8_192
 export const MAX_SEED_LENGTH = 128
 
@@ -18,6 +23,8 @@ export const ARTWORK_LIMITS = {
   turnJitter: { min: 0, max: 25 },
   wind: { min: -1, max: 1 },
   gravity: { min: 0, max: 1 },
+  tropism: { min: 0, max: 1 },
+  tropismAngle: { min: -180, max: 180 },
   trunkWidth: { min: 0.8, max: 12 },
   taper: { min: 0.5, max: 1 },
   glow: { min: 0, max: 18 },
@@ -32,6 +39,9 @@ export interface ArtworkState {
   turnJitter: number
   wind: number
   gravity: number
+  tropism: number
+  tropismAngle: number
+  season: Season
   seed: string
   palette: Palette
   trunkWidth: number
@@ -66,14 +76,26 @@ interface ArtworkPayloadBase {
   b: 0 | 1
 }
 
-interface ArtworkPayloadV3 extends ArtworkPayloadBase {
-  v: 3
+interface ArtworkPayloadV4 extends ArtworkPayloadBase {
+  v: 4
   u: [number, number, number]
-  e: [number, number]
+  e: [number, number, number, number, Season]
 }
 
-type EnvironmentalEffects = Pick<ArtworkState, 'wind' | 'gravity'>
+type SupportedArtworkVersion = 1 | 2 | 3 | typeof ARTWORK_STATE_VERSION
 
+type EnvironmentalEffects = Pick<
+  ArtworkState,
+  'wind' | 'gravity' | 'tropism' | 'tropismAngle' | 'season'
+>
+
+const DEFAULT_ENVIRONMENT: EnvironmentalEffects = {
+  wind: 0,
+  gravity: 0,
+  tropism: 0,
+  tropismAngle: 0,
+  season: DEFAULT_SEASON,
+}
 const HEX_COLOR = /^#[0-9a-f]{6}$/i
 const CONTROL_CHARACTER = /[\u0000-\u001f\u007f]/
 
@@ -83,7 +105,7 @@ export function encodeArtworkState(
   const normalized = normalizeArtworkState(state)
   if (!normalized) return { ok: false, reason: 'invalid-state' }
 
-  const payload: ArtworkPayloadV3 = {
+  const payload: ArtworkPayloadV4 = {
     v: ARTWORK_STATE_VERSION,
     p: normalized.presetId,
     a: normalized.axiom,
@@ -92,7 +114,13 @@ export function encodeArtworkState(
     d: normalized.angle,
     j: normalized.turnJitter,
     s: normalized.seed,
-    e: [normalized.wind, normalized.gravity],
+    e: [
+      normalized.wind,
+      normalized.gravity,
+      normalized.tropism,
+      normalized.tropismAngle,
+      normalized.season,
+    ],
     c: [
       normalized.palette.root,
       normalized.palette.crown,
@@ -135,26 +163,16 @@ export function decodeArtworkState(
   }
 
   if (!isRecord(parsed)) return { ok: false, reason: 'malformed' }
-  if (
-    typeof parsed.v === 'number' &&
-    parsed.v !== 1 &&
-    parsed.v !== 2 &&
-    parsed.v !== ARTWORK_STATE_VERSION
-  ) {
-    return { ok: false, reason: 'unsupported-version' }
-  }
-  if (parsed.v !== 1 && parsed.v !== 2 && parsed.v !== ARTWORK_STATE_VERSION) {
-    return { ok: false, reason: 'malformed' }
-  }
 
-  const viewport = parsed.v === 1
+  const version = parseArtworkVersion(parsed.v)
+  if (!version.ok) return version
+
+  const viewport = version.value === 1
     ? createDefaultViewport()
     : parseViewportPayload(parsed.u)
   if (!viewport) return { ok: false, reason: 'invalid-state' }
 
-  const effects = parsed.v === ARTWORK_STATE_VERSION
-    ? parseEffectsPayload(parsed.e)
-    : { wind: 0, gravity: 0 }
+  const effects = parseEnvironmentPayload(version.value, parsed.e)
   if (!effects) return { ok: false, reason: 'invalid-state' }
 
   const state = parseArtworkPayload(parsed, viewport, effects)
@@ -164,6 +182,26 @@ export function decodeArtworkState(
   return normalized
     ? { ok: true, value: normalized }
     : { ok: false, reason: 'invalid-state' }
+}
+
+function parseArtworkVersion(
+  value: unknown,
+): ArtworkStateCodecResult<SupportedArtworkVersion> {
+  if (value === 1 || value === 2 || value === 3 || value === ARTWORK_STATE_VERSION) {
+    return { ok: true, value }
+  }
+  return typeof value === 'number'
+    ? { ok: false, reason: 'unsupported-version' }
+    : { ok: false, reason: 'malformed' }
+}
+
+function parseEnvironmentPayload(
+  version: SupportedArtworkVersion,
+  value: unknown,
+): EnvironmentalEffects | null {
+  if (version === ARTWORK_STATE_VERSION) return parseEffectsPayload(value)
+  if (version === 3) return parseLegacyEffectsPayload(value)
+  return DEFAULT_ENVIRONMENT
 }
 
 function parseArtworkPayload(
@@ -200,6 +238,9 @@ function parseArtworkPayload(
     turnJitter: payload.j,
     wind: effects.wind,
     gravity: effects.gravity,
+    tropism: effects.tropism,
+    tropismAngle: effects.tropismAngle,
+    season: effects.season,
     seed: payload.s,
     palette,
     trunkWidth: payload.w,
@@ -224,6 +265,9 @@ function normalizeArtworkState(state: ArtworkState): ArtworkState | null {
     !inRange(state.turnJitter, ARTWORK_LIMITS.turnJitter) ||
     !inRange(state.wind, ARTWORK_LIMITS.wind) ||
     !inRange(state.gravity, ARTWORK_LIMITS.gravity) ||
+    !inRange(state.tropism, ARTWORK_LIMITS.tropism) ||
+    !inRange(state.tropismAngle, ARTWORK_LIMITS.tropismAngle) ||
+    !isSeason(state.season) ||
     !inRange(state.trunkWidth, ARTWORK_LIMITS.trunkWidth) ||
     !inRange(state.taper, ARTWORK_LIMITS.taper) ||
     !inRange(state.glow, ARTWORK_LIMITS.glow) ||
@@ -256,6 +300,28 @@ function normalizeArtworkState(state: ArtworkState): ArtworkState | null {
 function parseEffectsPayload(value: unknown): EnvironmentalEffects | null {
   if (
     !Array.isArray(value) ||
+    value.length !== 5 ||
+    typeof value[0] !== 'number' ||
+    typeof value[1] !== 'number' ||
+    typeof value[2] !== 'number' ||
+    typeof value[3] !== 'number' ||
+    !isSeason(value[4])
+  ) {
+    return null
+  }
+
+  return {
+    wind: value[0],
+    gravity: value[1],
+    tropism: value[2],
+    tropismAngle: value[3],
+    season: value[4],
+  }
+}
+
+function parseLegacyEffectsPayload(value: unknown): EnvironmentalEffects | null {
+  if (
+    !Array.isArray(value) ||
     value.length !== 2 ||
     typeof value[0] !== 'number' ||
     typeof value[1] !== 'number'
@@ -263,7 +329,7 @@ function parseEffectsPayload(value: unknown): EnvironmentalEffects | null {
     return null
   }
 
-  return { wind: value[0], gravity: value[1] }
+  return { ...DEFAULT_ENVIRONMENT, wind: value[0], gravity: value[1] }
 }
 
 function parseViewportPayload(value: unknown): ViewportState | null {
@@ -325,6 +391,10 @@ function inRange(
 
 function isColor(value: string): boolean {
   return HEX_COLOR.test(value)
+}
+
+function isSeason(value: unknown): value is Season {
+  return typeof value === 'string' && SEASONS.some((season) => season === value)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
