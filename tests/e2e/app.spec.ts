@@ -24,6 +24,34 @@ test('grows artwork and switches between presets', async ({ page }) => {
   expect(pageErrors).toEqual([])
 })
 
+test('browses the canonical system collection', async ({ page }) => {
+  const pageErrors: string[] = []
+  page.on('pageerror', (error) => pageErrors.push(error.message))
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+
+  await page.goto('/')
+  const systems = [
+    { button: /Binary Tree/, heading: 'Binary Tree', segments: '6,144' },
+    { button: /Koch Snowflake/, heading: 'Koch Snowflake', segments: '3,072' },
+    { button: /Hilbert Curve/, heading: 'Hilbert Curve', segments: '4,095' },
+    { button: /Cantor Set/, heading: 'Cantor Set', segments: '128' },
+    { button: /Gosper Curve/, heading: 'Gosper Curve', segments: '2,401' },
+  ]
+
+  for (const system of systems) {
+    await page.getByRole('button', { name: system.button }).click()
+    await expect(page.getByRole('heading', { name: system.heading, level: 1 })).toBeVisible()
+    await expect(page.locator('.stage-metrics strong').first()).toHaveText(
+      system.segments,
+    )
+  }
+
+  await expect(page.getByRole('textbox', { name: 'Rule 1 production' })).toHaveValue(
+    'A-B--B+A++AA+B-',
+  )
+  expect(pageErrors).toEqual([])
+})
+
 test('pauses, scrubs, and changes growth playback', async ({ page }) => {
   const pageErrors: string[] = []
   page.on('pageerror', (error) => pageErrors.push(error.message))

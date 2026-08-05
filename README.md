@@ -14,7 +14,7 @@ Axiom Bloom is an interactive generative-art studio for exploring Lindenmayer sy
 - Versioned share links that restore complete, deterministic artworks
 - A local specimen library for named custom artwork snapshots
 - Live generation, wind, gravity, directional sunlight, seasons, palette, and styling controls
-- Built-in botanical, dragon curve, and Sierpiński presets
+- Studio originals plus a safety-bounded collection of canonical L-systems
 - PNG and consolidated SVG export
 - Responsive and reduced-motion-aware interface
 
@@ -50,6 +50,18 @@ src/
 ```
 
 The engine is independent of Svelte and Canvas. Generation runs behind a worker boundary so a future Rust/WASM implementation can replace the computational core without changing the application or renderers.
+
+## Canonical systems
+
+The built-in collection pairs the studio originals with five reference grammars:
+
+- **Binary Tree** exercises branch-stack push and restore behavior.
+- **Koch Snowflake** closes a single-symbol recursive curve.
+- **Hilbert Curve** uses mutually recursive, non-drawing control symbols.
+- **Cantor Set** alternates drawing and move-only symbols to preserve gaps.
+- **Gosper Curve** lets both production symbols draw a hexagonal path.
+
+Each canonical system sets its maximum generation to the highest value whose expanded command stream remains within the 500,000-symbol worker limit. They can be edited, animated, shared, saved, and exported like every other specimen.
 
 ## Editing grammars
 
