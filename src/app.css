@@ -1000,6 +1000,91 @@ button:disabled {
   transform: rotate(45deg);
 }
 
+.glyph-binary-tree {
+  color: #a8ef72;
+  border-left: 1px solid currentColor;
+  transform: translateX(15px);
+}
+
+.glyph-binary-tree::before,
+.glyph-binary-tree::after {
+  bottom: 9px;
+  left: -1px;
+  width: 16px;
+  height: 16px;
+  border-top: 1px solid;
+  transform-origin: bottom left;
+}
+
+.glyph-binary-tree::before { transform: rotate(-42deg); }
+.glyph-binary-tree::after { transform: rotate(42deg); }
+
+.glyph-koch-snowflake {
+  color: #8fe8ff;
+}
+
+.glyph-koch-snowflake::before,
+.glyph-koch-snowflake::after {
+  inset: 7px 5px;
+  border: 1px solid;
+  transform: rotate(30deg);
+}
+
+.glyph-koch-snowflake::after {
+  transform: rotate(-30deg);
+}
+
+.glyph-hilbert-curve {
+  color: #8d7cf4;
+}
+
+.glyph-hilbert-curve::before {
+  inset: 4px;
+  border-top: 1px solid;
+  border-right: 1px solid;
+  border-bottom: 1px solid;
+}
+
+.glyph-hilbert-curve::after {
+  inset: 10px;
+  border-top: 1px solid;
+  border-left: 1px solid;
+  border-bottom: 1px solid;
+}
+
+.glyph-cantor-set {
+  color: #ffd36d;
+}
+
+.glyph-cantor-set::before,
+.glyph-cantor-set::after {
+  left: 2px;
+  width: 28px;
+  border-top: 2px dotted;
+}
+
+.glyph-cantor-set::before { top: 11px; }
+.glyph-cantor-set::after { top: 22px; width: 19px; }
+
+.glyph-gosper-curve {
+  color: #65e3ce;
+}
+
+.glyph-gosper-curve::before {
+  inset: 5px;
+  border: 1px solid;
+  border-radius: 8px 3px 8px 3px;
+  transform: rotate(30deg);
+}
+
+.glyph-gosper-curve::after {
+  top: 17px;
+  left: 4px;
+  width: 24px;
+  border-top: 1px solid;
+  transform: rotate(-30deg);
+}
+
 .range-control {
   display: block;
   margin-top: 17px;

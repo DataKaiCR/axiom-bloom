@@ -1,6 +1,6 @@
 import type { LSystemPreset } from './types'
 
-export const PRESETS: LSystemPreset[] = [
+const STUDIO_PRESETS: LSystemPreset[] = [
   {
     id: 'verdant-bloom',
     name: 'Verdant Bloom',
@@ -104,6 +104,144 @@ export const PRESETS: LSystemPreset[] = [
       showTips: false,
     },
   },
+]
+
+export const CANONICAL_SYSTEMS: LSystemPreset[] = [
+  {
+    id: 'binary-tree',
+    name: 'Binary Tree',
+    category: 'Canonical',
+    description: 'A balanced branching tree built from explicit turtle stacks.',
+    axiom: '0',
+    rules: {
+      '0': '1[+0][-0]',
+      '1': '11',
+    },
+    drawSymbols: ['0', '1'],
+    defaultGenerations: 10,
+    maxGenerations: 15,
+    angle: 45,
+    turnJitter: 0,
+    step: 7,
+    startAngle: -90,
+    seed: 'binary-roots',
+    appearance: {
+      palette: { root: '#80533d', crown: '#a8ef72', accent: '#ffe09a' },
+      trunkWidth: 5.6,
+      taper: 0.78,
+      glow: 6,
+      showTips: true,
+    },
+  },
+  {
+    id: 'koch-snowflake',
+    name: 'Koch Snowflake',
+    category: 'Canonical',
+    description: 'A closed curve whose three edges recurse into crystalline detail.',
+    axiom: 'F--F--F',
+    rules: {
+      F: 'F+F--F+F',
+    },
+    drawSymbols: ['F'],
+    defaultGenerations: 5,
+    maxGenerations: 8,
+    angle: 60,
+    turnJitter: 0,
+    step: 6,
+    startAngle: 0,
+    seed: 'winter-proof',
+    appearance: {
+      palette: { root: '#5877d9', crown: '#8fe8ff', accent: '#f4fbff' },
+      trunkWidth: 2.1,
+      taper: 1,
+      glow: 9,
+      showTips: false,
+    },
+  },
+  {
+    id: 'hilbert-curve',
+    name: 'Hilbert Curve',
+    category: 'Canonical',
+    description: 'Mutual recursion folds one continuous path through a square.',
+    axiom: 'A',
+    rules: {
+      A: '+BF-AFA-FB+',
+      B: '-AF+BFB+FA-',
+    },
+    drawSymbols: ['F'],
+    defaultGenerations: 6,
+    maxGenerations: 8,
+    angle: 90,
+    turnJitter: 0,
+    step: 6,
+    startAngle: 0,
+    seed: 'square-memory',
+    appearance: {
+      palette: { root: '#8d6df2', crown: '#62e6da', accent: '#e7d9ff' },
+      trunkWidth: 2.2,
+      taper: 1,
+      glow: 8,
+      showTips: false,
+    },
+  },
+  {
+    id: 'cantor-set',
+    name: 'Cantor Set',
+    category: 'Canonical',
+    description: 'Draw and move symbols preserve a line while opening recursive gaps.',
+    axiom: 'A',
+    rules: {
+      A: 'ABA',
+      B: 'BBB',
+    },
+    drawSymbols: ['A'],
+    moveSymbols: ['B'],
+    defaultGenerations: 7,
+    maxGenerations: 11,
+    angle: 0,
+    turnJitter: 0,
+    step: 5,
+    startAngle: 0,
+    seed: 'middle-thirds',
+    appearance: {
+      palette: { root: '#f07a7a', crown: '#ffd36d', accent: '#fff2bd' },
+      trunkWidth: 4.2,
+      taper: 1,
+      glow: 7,
+      showTips: false,
+    },
+  },
+  {
+    id: 'gosper-curve',
+    name: 'Gosper Curve',
+    category: 'Canonical',
+    description: 'Two drawable symbols interlock into a flowing hexagonal field.',
+    axiom: 'A',
+    rules: {
+      A: 'A-B--B+A++AA+B-',
+      B: '+A-BB--B-A++A+B',
+    },
+    drawSymbols: ['A', 'B'],
+    defaultGenerations: 4,
+    maxGenerations: 6,
+    angle: 60,
+    turnJitter: 0,
+    step: 6,
+    startAngle: 0,
+    seed: 'hexagonal-river',
+    appearance: {
+      palette: { root: '#ff7f8f', crown: '#65e3ce', accent: '#fff0c7' },
+      trunkWidth: 2.3,
+      taper: 1,
+      glow: 8,
+      showTips: false,
+    },
+  },
+]
+
+export const PRESETS: LSystemPreset[] = [
+  ...STUDIO_PRESETS,
+  ...CANONICAL_SYSTEMS,
 ]
 
 export function getPreset(id: string): LSystemPreset {
